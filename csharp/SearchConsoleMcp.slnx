@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/SearchConsoleMcp/SearchConsoleMcp.csproj" />
+  <Project Path="tests/SearchConsoleMcp.Tests/SearchConsoleMcp.Tests.csproj" />
+</Solution>
