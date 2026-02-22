@@ -88,13 +88,7 @@ func (c *Client) QuerySearchAnalytics(
 
 	rows := make([]SearchAnalyticsRow, len(raw.Rows))
 	for i, r := range raw.Rows {
-		rows[i] = SearchAnalyticsRow{
-			Keys:        r.Keys,
-			Clicks:      r.Clicks,
-			Impressions: r.Impressions,
-			CTR:         r.CTR,
-			Position:    r.Position,
-		}
+		rows[i] = SearchAnalyticsRow(r)
 	}
 
 	return &SearchAnalyticsResponse{
@@ -137,7 +131,7 @@ func (c *Client) ListSites(ctx context.Context) (*SiteList, error) {
 
 	sites := make([]Site, len(raw.SiteEntry))
 	for i, s := range raw.SiteEntry {
-		sites[i] = Site{SiteURL: s.SiteURL, PermissionLevel: s.PermissionLevel}
+		sites[i] = Site(s)
 	}
 
 	return &SiteList{Sites: sites, QueriedAt: time.Now().UTC()}, nil
