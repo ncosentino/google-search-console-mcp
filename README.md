@@ -349,7 +349,9 @@ dotnet test SearchConsoleMcp.slnx
 
 ### Nick Cosentino -- Dev Leader
 
-This MCP server was built by **[Nick Cosentino](https://www.devleader.ca)**, a software engineer and content creator known as **Dev Leader**. Nick creates practical .NET, C#, ASP.NET Core, Blazor, and software engineering content for intermediate to advanced developers.
+This MCP server was built by **[Nick Cosentino](https://www.devleader.ca)**, a software engineer and content creator known as **Dev Leader**. Nick creates practical .NET, C#, ASP.NET Core, Blazor, and software engineering content for intermediate to advanced developers -- covering everything from performance optimization and clean architecture to real-world career advice.
+
+This tool was born out of real work analyzing search performance for [devleader.ca](https://www.devleader.ca) and the desire to use AI assistants effectively during that process. It serves as a practical example of building Native AOT C# and idiomatic Go MCP servers with zero runtime dependencies.
 
 **Find Nick online:**
 
@@ -361,7 +363,7 @@ This MCP server was built by **[Nick Cosentino](https://www.devleader.ca)**, a s
 
 ### BrandGhost
 
-[BrandGhost](https://www.brandghost.ai) is a social media automation platform built by Nick that lets content creators cross-post and schedule content across all social platforms in one click.
+[BrandGhost](https://www.brandghost.ai) is a social media automation platform built by Nick that lets content creators cross-post and schedule content across all social platforms in one click. If you create content and want to spend less time on distribution and more time creating, check it out.
 
 ---
 
