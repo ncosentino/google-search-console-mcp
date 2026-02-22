@@ -12,7 +12,7 @@ internal sealed class SearchConsoleTool(SearchConsoleClient client)
     [McpServerTool(Name = "query_search_analytics")]
     [Description("Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position. Dimensions can be any combination of: query, page, country, device, date.")]
     internal async Task<string> QuerySearchAnalytics(
-        [Description("The Search Console property URL (e.g. 'https://www.example.com/' or 'sc-domain:example.com').")] string site_url,
+        [Description("The Search Console property. Accepts flexible input: bare domain (\"example.com\"), full URL (\"https://www.example.com\"), or canonical GSC form (\"sc-domain:example.com\", \"https://www.example.com/\"). The server normalizes the input and automatically retries with property discovery on 403 errors.")] string site_url,
         [Description("Start date in YYYY-MM-DD format.")] string start_date,
         [Description("End date in YYYY-MM-DD format.")] string end_date,
         [Description("Dimensions to group by. Valid values: query, page, country, device, date. Pass an empty array to get aggregate totals.")] string[] dimensions,
@@ -54,7 +54,7 @@ internal sealed class SearchConsoleTool(SearchConsoleClient client)
     [McpServerTool(Name = "list_sitemaps")]
     [Description("List sitemaps submitted to Google Search Console for a specific property, including submission status and error counts.")]
     internal async Task<string> ListSitemaps(
-        [Description("The Search Console property URL (e.g. 'https://www.example.com/').")] string site_url,
+        [Description("The Search Console property. Accepts flexible input: bare domain (\"example.com\"), full URL (\"https://www.example.com\"), or canonical GSC form (\"sc-domain:example.com\", \"https://www.example.com/\"). The server normalizes the input and automatically retries with property discovery on 403 errors.")] string site_url,
         CancellationToken cancellationToken = default)
     {
         try

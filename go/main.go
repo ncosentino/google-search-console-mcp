@@ -53,7 +53,7 @@ func main() {
 	mcp.AddTool(srv,
 		&mcp.Tool{
 			Name:        "query_search_analytics",
-			Description: "Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position grouped by the specified dimensions (query, page, country, device, date).",
+			Description: "Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position grouped by the specified dimensions (query, page, country, device, date). The site_url parameter accepts flexible input: bare domain (\"devleader.ca\"), full URL (\"https://www.devleader.ca\"), or canonical GSC property format (\"sc-domain:devleader.ca\", \"https://www.devleader.ca/\"). The server normalizes the input and automatically retries with property discovery on 403 errors.",
 		},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input querySearchAnalyticsInput) (*mcp.CallToolResult, any, error) {
 			return querySearchAnalytics(ctx, client, input)
@@ -73,7 +73,7 @@ func main() {
 	mcp.AddTool(srv,
 		&mcp.Tool{
 			Name:        "list_sitemaps",
-			Description: "List sitemaps submitted to Google Search Console for a specific property.",
+			Description: "List sitemaps submitted to Google Search Console for a specific property. The site_url parameter accepts flexible input: bare domain (\"devleader.ca\"), full URL (\"https://www.devleader.ca\"), or canonical GSC property format (\"sc-domain:devleader.ca\", \"https://www.devleader.ca/\"). The server normalizes the input and automatically retries with property discovery on 403 errors.",
 		},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input listSitemapsInput) (*mcp.CallToolResult, any, error) {
 			return listSitemaps(ctx, client, input.SiteURL)

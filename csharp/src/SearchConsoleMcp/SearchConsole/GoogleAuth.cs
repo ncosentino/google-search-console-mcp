@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace SearchConsoleMcp.SearchConsole;
 
 /// <summary>Manages Google OAuth2 access tokens obtained via service account JWT flow.</summary>
-internal sealed class GoogleServiceAccountAuth
+internal sealed class GoogleServiceAccountAuth : ITokenProvider
 {
     private const string TokenUri = "https://oauth2.googleapis.com/token";
 
@@ -37,7 +37,7 @@ internal sealed class GoogleServiceAccountAuth
     }
 
     /// <summary>Returns a valid Bearer token, refreshing if necessary.</summary>
-    internal async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default)
+    public async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default)
     {
         if (_cachedToken is not null && DateTimeOffset.UtcNow < _tokenExpiry.AddMinutes(-1))
             return _cachedToken;

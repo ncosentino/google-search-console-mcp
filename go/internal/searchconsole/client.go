@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -15,10 +17,23 @@ import (
 )
 
 const (
-	baseURL    = "https://www.googleapis.com/webmasters/v3"
-	gscScope   = "https://www.googleapis.com/auth/webmasters.readonly"
+	gscScope    = "https://www.googleapis.com/auth/webmasters.readonly"
 	httpTimeout = 30 * time.Second
 )
+
+// apiBaseURL is the base URL for the Google Search Console API.
+// It is a variable so tests can override it to point at a local test server.
+var apiBaseURL = "https://www.googleapis.com/webmasters/v3"
+
+// apiRequestError is returned when the Search Console API responds with a non-2xx status.
+type apiRequestError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *apiRequestError) Error() string {
+	return fmt.Sprintf("Search Console API returned HTTP %d: %s", e.StatusCode, e.Body)
+}
 
 // Client calls the Google Search Console API.
 type Client struct {
@@ -37,7 +52,34 @@ func NewClient(serviceAccountJSON []byte) (*Client, error) {
 }
 
 // QuerySearchAnalytics queries search analytics data for the given site.
+// siteURL accepts any of: bare domain ("example.com"), URL ("https://example.com"),
+// or canonical GSC form ("sc-domain:example.com", "https://example.com/").
 func (c *Client) QuerySearchAnalytics(
+	ctx context.Context,
+	siteURL string,
+	startDate, endDate string,
+	dimensions []string,
+	rowLimit int,
+) (*SearchAnalyticsResponse, error) {
+	resolved := NormalizeSiteURL(siteURL)
+	result, err := c.querySearchAnalyticsWithURL(ctx, resolved, startDate, endDate, dimensions, rowLimit)
+	if err != nil {
+		var apiErr *apiRequestError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusForbidden {
+			slog.Info("site URL returned 403, attempting property resolution", "input", siteURL, "tried", resolved)
+			resolvedURL, resolveErr := ResolveSiteURL(ctx, c, siteURL)
+			if resolveErr != nil {
+				return nil, err // return original 403 error
+			}
+			slog.Info("retrying with resolved property", "resolvedURL", resolvedURL)
+			return c.querySearchAnalyticsWithURL(ctx, resolvedURL, startDate, endDate, dimensions, rowLimit)
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *Client) querySearchAnalyticsWithURL(
 	ctx context.Context,
 	siteURL string,
 	startDate, endDate string,
@@ -59,7 +101,7 @@ func (c *Client) QuerySearchAnalytics(
 	}
 
 	endpoint := fmt.Sprintf("%s/sites/%s/searchAnalytics/query",
-		baseURL, url.PathEscape(siteURL))
+		apiBaseURL, url.PathEscape(siteURL))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
@@ -77,8 +119,7 @@ func (c *Client) QuerySearchAnalytics(
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Search Console API returned HTTP %d: %s",
-			resp.StatusCode, truncate(string(body), 300))
+		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncate(string(body), 300)}
 	}
 
 	var raw apiSearchAnalyticsResponse
@@ -104,7 +145,7 @@ func (c *Client) QuerySearchAnalytics(
 
 // ListSites returns all Search Console properties accessible to the service account.
 func (c *Client) ListSites(ctx context.Context) (*SiteList, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/sites", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiBaseURL+"/sites", nil)
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}
@@ -120,8 +161,7 @@ func (c *Client) ListSites(ctx context.Context) (*SiteList, error) {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Search Console API returned HTTP %d: %s",
-			resp.StatusCode, truncate(string(body), 300))
+		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncate(string(body), 300)}
 	}
 
 	var raw apiSiteListResponse
@@ -138,8 +178,29 @@ func (c *Client) ListSites(ctx context.Context) (*SiteList, error) {
 }
 
 // ListSitemaps returns submitted sitemaps for the given site.
+// siteURL accepts any of: bare domain ("example.com"), URL ("https://example.com"),
+// or canonical GSC form ("sc-domain:example.com", "https://example.com/").
 func (c *Client) ListSitemaps(ctx context.Context, siteURL string) (*SitemapList, error) {
-	endpoint := fmt.Sprintf("%s/sites/%s/sitemaps", baseURL, url.PathEscape(siteURL))
+	resolved := NormalizeSiteURL(siteURL)
+	result, err := c.listSitemapsWithURL(ctx, resolved)
+	if err != nil {
+		var apiErr *apiRequestError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusForbidden {
+			slog.Info("site URL returned 403, attempting property resolution", "input", siteURL, "tried", resolved)
+			resolvedURL, resolveErr := ResolveSiteURL(ctx, c, siteURL)
+			if resolveErr != nil {
+				return nil, err
+			}
+			slog.Info("retrying with resolved property", "resolvedURL", resolvedURL)
+			return c.listSitemapsWithURL(ctx, resolvedURL)
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *Client) listSitemapsWithURL(ctx context.Context, siteURL string) (*SitemapList, error) {
+	endpoint := fmt.Sprintf("%s/sites/%s/sitemaps", apiBaseURL, url.PathEscape(siteURL))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
@@ -156,8 +217,7 @@ func (c *Client) ListSitemaps(ctx context.Context, siteURL string) (*SitemapList
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Search Console API returned HTTP %d: %s",
-			resp.StatusCode, truncate(string(body), 300))
+		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncate(string(body), 300)}
 	}
 
 	var raw apiSitemapListResponse
