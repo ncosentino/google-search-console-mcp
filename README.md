@@ -33,11 +33,20 @@ With this MCP server configured, you can ask your AI: _"Which queries am I ranki
 ### Step 1: Create a Google Service Account
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create or select a project
-2. Enable the **Google Search Console API** for that project
+2. Enable the **Google Search Console API** for that project:
+   - Go to `https://console.cloud.google.com/apis/library/searchconsole.googleapis.com`
+   - Click **Enable**
 3. Create a **Service Account** (IAM & Admin → Service Accounts → Create Service Account)
-4. Create a JSON key for that service account and download it
-5. Go to [Google Search Console](https://search.google.com/search-console) → Settings → Users and permissions
-6. Add the service account email (e.g. `my-sa@my-project.iam.gserviceaccount.com`) as a **Full user** or **Restricted user** on your property
+   - Give it a name (e.g. `gsc-mcp`) -- no project-level roles needed
+4. Click on the service account → **Keys** tab → **Add Key → Create new key → JSON**
+   - Download the JSON file -- the `client_email` field inside is the email you'll use in step 5
+5. Go to [Google Search Console](https://search.google.com/search-console) → select your property → **Settings → Users and permissions → Add user**
+   - Enter the `client_email` from the JSON file exactly (e.g. `gsc-mcp@my-project.iam.gserviceaccount.com`)
+   - Set permission to **Full** → **Add**
+
+> **Note:** When adding the service account in Search Console, use the exact email from the `client_email` field in the downloaded JSON -- not a manually constructed one.
+
+> **Note on property URL format:** Search Console has two property types. If your property was added as a domain property, the site URL is `sc-domain:example.com` (not `https://www.example.com/`). Use `list_sites` to discover the correct format for your property.
 
 > The Search Console API is free. No billing account is required.
 
@@ -76,7 +85,9 @@ Replace `/path/to/binary` with the actual path to your downloaded binary. Replac
 {
   "mcpServers": {
     "search-console": {
+      "type": "stdio",
       "command": "/path/to/gsc-mcp-go-linux-amd64",
+      "args": [],
       "env": {
         "GOOGLE_SERVICE_ACCOUNT_FILE": "/path/to/service-account.json"
       }
