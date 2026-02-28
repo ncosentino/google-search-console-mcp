@@ -1,0 +1,90 @@
+site_name: Google Search Console MCP
+site_url: https://github.devleader.ca/google-search-console-mcp/
+site_description: Zero-dependency MCP server exposing Google Search Console search analytics to AI assistants. Pre-built native binaries for Linux, macOS, and Windows -- no Node.js, no Python, no runtime required.
+repo_url: https://github.com/ncosentino/google-search-console-mcp
+repo_name: ncosentino/google-search-console-mcp
+strict: true
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  favicon: assets/favicon.png
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.highlight
+    - search.suggest
+    - toc.integrate
+  palette:
+    - scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - MCP Tools:
+    - Overview: tools/index.md
+    - query_search_analytics: tools/query-search-analytics.md
+    - list_sites: tools/list-sites.md
+    - list_sitemaps: tools/list-sitemaps.md
+  - Setup by Tool: setup-by-tool.md
+  - Configuration: configuration.md
+  - Go vs C#: implementations.md
+  - Building from Source: building.md
+  - Articles: articles.md
+
+plugins:
+  - search
+  - meta
+
+hooks:
+  - docs/hooks/schema.py
+  - docs/hooks/llms_txt.py
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.magiclink
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 4
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ncosentino/google-search-console-mcp
+
+docs_dir: docs
