@@ -1,0 +1,23 @@
+# Google Search Console MCP
+
+> Zero-dependency MCP server that exposes Google Search Console search analytics to AI assistants.
+
+The Google Search Console MCP server provides native binaries for Go and C#.
+It exposes three MCP tools -- query_search_analytics, list_sites, list_sitemaps --
+directly to AI assistants like Claude, GitHub Copilot, and Cursor.
+Author: Nick Cosentino (https://www.devleader.ca).
+
+- [Home](https://github.devleader.ca/google-search-console-mcp/) -- Zero-dependency MCP server for Google Search Console. Pre-built native binaries expose organic search analytics -- clicks, impressions, CTR, position -- directly to AI assistants like Claude, GitHub Copilot, and Cursor.
+- [Getting Started](https://github.devleader.ca/google-search-console-mcp/getting-started/) -- Set up the Google Search Console MCP server in three steps -- create a service account, download a pre-built binary for your platform, and add it to your AI tool configuration.
+
+## MCP Tools
+
+- [Overview](https://github.devleader.ca/google-search-console-mcp/tools/) -- Overview of the three MCP tools exposed by the Google Search Console MCP server -- query_search_analytics, list_sites, and list_sitemaps.
+- [query_search_analytics](https://github.devleader.ca/google-search-console-mcp/tools/query-search-analytics/) -- Reference for the query_search_analytics MCP tool -- parameters, response format, dimension combinations, and example prompts for querying Google Search Console analytics.
+- [list_sites](https://github.devleader.ca/google-search-console-mcp/tools/list-sites/) -- Reference for the list_sites MCP tool -- response format, permission levels, and example prompts for listing Google Search Console properties accessible to the service account.
+- [list_sitemaps](https://github.devleader.ca/google-search-console-mcp/tools/list-sitemaps/) -- Reference for the list_sitemaps MCP tool -- parameters, response format, and example prompts for listing sitemaps submitted to Google Search Console for a property.
+- [Setup by Tool](https://github.devleader.ca/google-search-console-mcp/setup-by-tool/) -- Configure the Google Search Console MCP server for Claude, Claude Desktop, GitHub Copilot, Cursor, VS Code, and Visual Studio with exact JSON config snippets.
+- [Configuration](https://github.devleader.ca/google-search-console-mcp/configuration/) -- Google Search Console MCP server credential and property configuration reference -- resolution order, environment variables, .env file, and site URL normalization rules.
+- [Go vs C#](https://github.devleader.ca/google-search-console-mcp/implementations/) -- Compare the Go and C# implementations of the Google Search Console MCP server -- binary size, startup latency, distribution, and when to choose each.
+- [Building from Source](https://github.devleader.ca/google-search-console-mcp/building/) -- Build the Google Search Console MCP server from source -- Go and C# build commands, test commands, and Native AOT publish instructions for all platforms.
+- [Articles](https://github.devleader.ca/google-search-console-mcp/articles/) -- Zero-dependency MCP server exposing Google Search Console search analytics to AI assistants. Pre-built native binaries for Linux, macOS, and Windows -- no Node.js, no Python, no runtime required.
