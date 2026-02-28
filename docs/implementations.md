@@ -1,3 +1,7 @@
+---
+description: Compare the Go and C# implementations of the Google Search Console MCP server -- binary size, startup latency, distribution, and when to choose each.
+---
+
 # Go vs C#
 
 Both the Go and C# implementations expose identical MCP tools with identical behavior and response formats. Pick based on your preferences.

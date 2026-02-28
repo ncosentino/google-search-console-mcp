@@ -1,3 +1,7 @@
+---
+description: Reference for the list_sitemaps MCP tool -- parameters, response format, and example prompts for listing sitemaps submitted to Google Search Console for a property.
+---
+
 # list_sitemaps
 
 List sitemaps submitted to Google Search Console for a specific property, including submission status and error counts.

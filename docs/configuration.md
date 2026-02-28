@@ -1,3 +1,7 @@
+---
+description: Google Search Console MCP server credential and property configuration reference -- resolution order, environment variables, .env file, and site URL normalization rules.
+---
+
 # Configuration
 
 Credential resolution uses this priority order (highest to lowest):

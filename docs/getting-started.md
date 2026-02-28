@@ -1,3 +1,7 @@
+---
+description: Set up the Google Search Console MCP server in three steps -- create a service account, download a pre-built binary for your platform, and add it to your AI tool configuration.
+---
+
 # Getting Started
 
 Three steps: create a Google service account, download a binary, add it to your AI tool config.

@@ -1,3 +1,7 @@
+---
+description: Configure the Google Search Console MCP server for Claude, Claude Desktop, GitHub Copilot, Cursor, VS Code, and Visual Studio with exact JSON config snippets.
+---
+
 # Setup by Tool
 
 Replace `/path/to/binary` with the actual path to your downloaded binary. Replace `/path/to/service-account.json` with the path to your downloaded service account JSON key file.

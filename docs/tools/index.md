@@ -1,3 +1,7 @@
+---
+description: Overview of the three MCP tools exposed by the Google Search Console MCP server -- query_search_analytics, list_sites, and list_sitemaps.
+---
+
 # MCP Tools
 
 Three tools are exposed by this MCP server. All tools work identically across the Go and C# implementations.

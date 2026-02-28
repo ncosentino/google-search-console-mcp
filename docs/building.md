@@ -1,3 +1,7 @@
+---
+description: Build the Google Search Console MCP server from source -- Go and C# build commands, test commands, and Native AOT publish instructions for all platforms.
+---
+
 # Building from Source
 
 Both implementations can be built locally from the repository. Pre-built binaries are available on the [Releases page](https://github.com/ncosentino/google-search-console-mcp/releases/latest) if you don't need to build from source.

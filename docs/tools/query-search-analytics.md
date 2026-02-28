@@ -1,3 +1,7 @@
+---
+description: Reference for the query_search_analytics MCP tool -- parameters, response format, dimension combinations, and example prompts for querying Google Search Console analytics.
+---
+
 # query_search_analytics
 
 Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position for queries, pages, and other dimensions.

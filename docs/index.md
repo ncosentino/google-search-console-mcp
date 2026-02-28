@@ -1,3 +1,7 @@
+---
+description: Zero-dependency MCP server for Google Search Console. Pre-built native binaries expose organic search analytics -- clicks, impressions, CTR, position -- directly to AI assistants like Claude, GitHub Copilot, and Cursor.
+---
+
 # Google Search Console MCP
 
 > **Zero-dependency MCP server for Google Search Console.**

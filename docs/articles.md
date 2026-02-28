@@ -1,3 +1,7 @@
+---
+description: Blog posts and articles about the Google Search Console MCP server from Dev Leader. Tips, walkthroughs, and use cases for querying GSC data from AI assistants.
+---
+
 # Articles & Blog Posts
 
 Blog posts and articles about this MCP server from [Dev Leader](https://www.devleader.ca).

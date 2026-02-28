@@ -1,3 +1,7 @@
+---
+description: Reference for the list_sites MCP tool -- response format, permission levels, and example prompts for listing Google Search Console properties accessible to the service account.
+---
+
 # list_sites
 
 List all Google Search Console properties (sites) the service account has access to, along with permission levels.
