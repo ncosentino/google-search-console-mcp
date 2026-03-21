@@ -64,6 +64,7 @@ func main() {
 		&mcp.Tool{
 			Name:        "list_sites",
 			Description: "List all Google Search Console properties (sites) the service account has access to.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"required":[],"additionalProperties":false}`),
 		},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ listSitesInput) (*mcp.CallToolResult, any, error) {
 			return listSites(ctx, client)
