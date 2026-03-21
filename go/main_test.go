@@ -32,7 +32,7 @@ func TestNewServer_RegistersTools(_ *testing.T) {
 		&mcp.Tool{
 			Name:        "list_sites",
 			Description: "test",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{},"required":[],"additionalProperties":false}`),
+			InputSchema: listSitesInputSchema,
 		},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ listSitesInput) (*mcp.CallToolResult, any, error) {
 			return listSites(ctx, client)
@@ -47,24 +47,13 @@ func TestNewServer_RegistersTools(_ *testing.T) {
 	)
 }
 
-// TestListSites_InputSchema verifies that the list_sites tool exposes an explicit
-// input schema compatible with strict MCP clients (e.g. Copilot CLI) that reject
-// tools whose schema is missing a "properties" field.
+// TestListSites_InputSchema validates the production listSitesInputSchema variable to
+// ensure it is compatible with strict MCP clients (e.g. Copilot CLI) that require
+// explicit properties, required, and additionalProperties fields.
 func TestListSites_InputSchema(t *testing.T) {
-	tool := &mcp.Tool{
-		Name:        "list_sites",
-		Description: "test",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{},"required":[],"additionalProperties":false}`),
-	}
-
-	rawSchema, ok := tool.InputSchema.(json.RawMessage)
-	if !ok {
-		t.Fatal("InputSchema is not a json.RawMessage")
-	}
-
 	var schema map[string]any
-	if err := json.Unmarshal(rawSchema, &schema); err != nil {
-		t.Fatalf("unmarshal InputSchema: %v", err)
+	if err := json.Unmarshal(listSitesInputSchema, &schema); err != nil {
+		t.Fatalf("unmarshal listSitesInputSchema: %v", err)
 	}
 
 	properties, ok := schema["properties"]
@@ -96,16 +85,4 @@ func TestListSites_InputSchema(t *testing.T) {
 			t.Error("list_sites InputSchema 'additionalProperties' must be false for strict MCP clients")
 		}
 	}
-	// Verify the tool can be registered without panicking.
-	srv := mcp.NewServer(&mcp.Implementation{
-		Name:    "google-search-console-mcp",
-		Version: "test",
-	}, nil)
-	var client *searchconsole.Client
-	mcp.AddTool(srv,
-		tool,
-		func(ctx context.Context, _ *mcp.CallToolRequest, _ listSitesInput) (*mcp.CallToolResult, any, error) {
-			return listSites(ctx, client)
-		},
-	)
 }

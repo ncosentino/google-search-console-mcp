@@ -24,6 +24,11 @@ import (
 
 var version = "dev"
 
+// listSitesInputSchema is the explicit no-argument JSON Schema for the list_sites tool.
+// Strict MCP clients (e.g. Copilot CLI) reject tools whose schema omits explicit
+// properties/required/additionalProperties fields, breaking the entire MCP session.
+var listSitesInputSchema = json.RawMessage(`{"type":"object","properties":{},"required":[],"additionalProperties":false}`)
+
 func main() {
 	serviceAccountFile := flag.String("service-account-file", "", "Path to Google service account JSON key file")
 	flag.Parse()
@@ -64,7 +69,7 @@ func main() {
 		&mcp.Tool{
 			Name:        "list_sites",
 			Description: "List all Google Search Console properties (sites) the service account has access to.",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{},"required":[],"additionalProperties":false}`),
+			InputSchema: listSitesInputSchema,
 		},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ listSitesInput) (*mcp.CallToolResult, any, error) {
 			return listSites(ctx, client)
