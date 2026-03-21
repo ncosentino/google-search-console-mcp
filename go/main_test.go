@@ -67,14 +67,35 @@ func TestListSites_InputSchema(t *testing.T) {
 		t.Fatalf("unmarshal InputSchema: %v", err)
 	}
 
-	if _, ok := schema["properties"]; !ok {
+	properties, ok := schema["properties"]
+	if !ok {
 		t.Error("list_sites InputSchema is missing the 'properties' field; strict MCP clients will reject it")
+	} else {
+		if _, ok := properties.(map[string]any); !ok {
+			t.Error("list_sites InputSchema 'properties' field must be a JSON object")
+		}
 	}
 
-	if _, ok := schema["required"]; !ok {
+	required, ok := schema["required"]
+	if !ok {
 		t.Error("list_sites InputSchema is missing the 'required' field")
+	} else {
+		if _, ok := required.([]any); !ok {
+			t.Error("list_sites InputSchema 'required' field must be a JSON array (often empty)")
+		}
 	}
 
+	additionalProperties, ok := schema["additionalProperties"]
+	if !ok {
+		t.Error("list_sites InputSchema is missing the 'additionalProperties' field")
+	} else {
+		additionalPropertiesBool, ok := additionalProperties.(bool)
+		if !ok {
+			t.Error("list_sites InputSchema 'additionalProperties' field must be a boolean")
+		} else if additionalPropertiesBool {
+			t.Error("list_sites InputSchema 'additionalProperties' must be false for strict MCP clients")
+		}
+	}
 	// Verify the tool can be registered without panicking.
 	srv := mcp.NewServer(&mcp.Implementation{
 		Name:    "google-search-console-mcp",
