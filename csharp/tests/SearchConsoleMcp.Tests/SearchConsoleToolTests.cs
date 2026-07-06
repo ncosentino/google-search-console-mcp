@@ -1,0 +1,95 @@
+using SearchConsoleMcp.SearchConsole;
+using SearchConsoleMcp.Tools;
+using Xunit;
+
+namespace SearchConsoleMcp.Tests;
+
+/// <summary>
+/// Characterization tests for SearchConsoleTool's three MCP tool methods, written ahead
+/// of the ModelContextProtocol SDK dependency modernization (issue #6). Before these
+/// tests, all three methods were at 0% coverage -- nothing exercised the JSON
+/// serialization or the try/catch-to-ErrorResult conversion that wraps every call.
+/// </summary>
+public sealed class SearchConsoleToolTests
+{
+    [Fact]
+    public async Task QuerySearchAnalytics_Success_ReturnsSerializedResult()
+    {
+        var handler = new FakeMessageHandler(_ => FakeResponses.OkJson(new
+        {
+            rows = new[] { new { keys = new[] { "hello world" }, clicks = 5.0, impressions = 100.0, ctr = 0.05, position = 3.2 } }
+        }));
+        var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.QuerySearchAnalytics("devleader.ca", "2025-01-01", "2025-12-31", dimensions: [], row_limit: 10);
+
+        Assert.Contains("hello world", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task QuerySearchAnalytics_ApiError_ReturnsErrorResult()
+    {
+        var handler = new FakeMessageHandler(_ => FakeResponses.ServerError());
+        var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.QuerySearchAnalytics("devleader.ca", "2025-01-01", "2025-12-31", dimensions: []);
+
+        Assert.Contains("GscApiException", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ListSites_Success_ReturnsSerializedResult()
+    {
+        var handler = new FakeMessageHandler(_ => FakeResponses.OkJson(new
+        {
+            siteEntry = new[] { new { siteUrl = "sc-domain:devleader.ca", permissionLevel = "siteFullUser" } }
+        }));
+        var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.ListSites();
+
+        Assert.Contains("sc-domain:devleader.ca", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ListSites_ApiError_ReturnsErrorResult()
+    {
+        var handler = new FakeMessageHandler(_ => FakeResponses.ServerError());
+        var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.ListSites();
+
+        Assert.Contains("GscApiException", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ListSitemaps_Success_ReturnsSerializedResult()
+    {
+        var handler = new FakeMessageHandler(_ => FakeResponses.OkJson(new
+        {
+            sitemap = new[] { new { path = "https://devleader.ca/sitemap.xml", isPending = false, isSitemapsIndex = false, type = "sitemap", warnings = 0, errors = 0 } }
+        }));
+        var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.ListSitemaps("devleader.ca");
+
+        Assert.Contains("sitemap.xml", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ListSitemaps_ApiError_ReturnsErrorResult()
+    {
+        var handler = new FakeMessageHandler(_ => FakeResponses.ServerError());
+        var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.ListSitemaps("devleader.ca");
+
+        Assert.Contains("GscApiException", result, StringComparison.Ordinal);
+    }
+}
