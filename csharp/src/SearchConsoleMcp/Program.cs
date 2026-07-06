@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using SearchConsoleMcp;
 using SearchConsoleMcp.Config;
 using SearchConsoleMcp.SearchConsole;
 using SearchConsoleMcp.Tools;
@@ -39,6 +40,18 @@ builder.Services.AddTransient<SearchConsoleClient>(sp =>
 
 builder.Services
     .AddMcpServer()
+    .WithRequestFilters(requestFilters =>
+    {
+        // Repair a widespread MCP client bug where array-typed arguments arrive
+        // JSON-encoded as a string instead of a genuine array (see
+        // StringifiedArgsCoercion.cs).
+        requestFilters.AddCallToolFilter(next => async (context, cancellationToken) =>
+        {
+            if (context.Params is not null)
+                StringifiedArgsCoercion.CoerceStringifiedArrayArgs(context.Params, StringifiedArgsCoercion.ToolArrayFields);
+            return await next(context, cancellationToken).ConfigureAwait(false);
+        });
+    })
     .WithStdioServerTransport()
     .WithTools<SearchConsoleTool>();
 

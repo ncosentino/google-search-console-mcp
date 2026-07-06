@@ -15,7 +15,7 @@ internal sealed class SearchConsoleTool(SearchConsoleClient client)
         [Description("The Search Console property. Accepts flexible input: bare domain (\"example.com\"), full URL (\"https://www.example.com\"), or canonical GSC form (\"sc-domain:example.com\", \"https://www.example.com/\"). The server normalizes the input and automatically retries with property discovery on 403 errors.")] string site_url,
         [Description("Start date in YYYY-MM-DD format.")] string start_date,
         [Description("End date in YYYY-MM-DD format.")] string end_date,
-        [Description("Dimensions to group by. Valid values: query, page, country, device, date. Pass an empty array to get aggregate totals.")] string[] dimensions,
+        [Description("Dimensions to group by. Valid values: query, page, country, device, date. May be omitted entirely or passed as an empty array to get aggregate totals -- both are equivalent.")] string[]? dimensions = null,
         [Description("Maximum number of rows to return (1-25000). Defaults to 1000.")] int row_limit = 1000,
         CancellationToken cancellationToken = default)
     {
