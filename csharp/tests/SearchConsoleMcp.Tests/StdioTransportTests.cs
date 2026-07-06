@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text.Json;
 using ModelContextProtocol.Client;
 using SearchConsoleMcp.SearchConsole;
 using Xunit;
@@ -37,15 +35,7 @@ public sealed class StdioTransportTests
     {
         var serverDllPath = typeof(SearchConsoleClient).Assembly.Location;
 
-        using var rsa = RSA.Create(2048);
-        var serviceAccountJson = JsonSerializer.Serialize(new
-        {
-            type = "service_account",
-            project_id = "test-project",
-            private_key_id = "test-key-id",
-            private_key = rsa.ExportRSAPrivateKeyPem(),
-            client_email = "test@test-project.iam.gserviceaccount.com",
-        });
+        var serviceAccountJson = System.Text.Encoding.UTF8.GetString(FakeServiceAccount.JsonBytes());
 
         await using var client = await McpClient.CreateAsync(new StdioClientTransport(new StdioClientTransportOptions
         {

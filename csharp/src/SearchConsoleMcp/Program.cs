@@ -1,10 +1,9 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using SearchConsoleMcp;
 using SearchConsoleMcp.Config;
-using SearchConsoleMcp.SearchConsole;
 using SearchConsoleMcp.Tools;
 
 var serviceAccountFilePath = args.SkipWhile(a => a != "--service-account-file").Skip(1).FirstOrDefault();
@@ -20,38 +19,24 @@ if (serviceAccountJson is null || serviceAccountJson.Length == 0)
     return 1;
 }
 
+// --transport has no environment-variable fallback, matching the Go implementation.
+string transport = args.SkipWhile(a => a != "--transport").Skip(1).FirstOrDefault() ?? "stdio";
+
+if (transport == "http")
+{
+    var port = Environment.GetEnvironmentVariable("PORT") is { Length: > 0 } portEnv ? portEnv : "8080";
+    var app = Hosting.BuildHttpHost(args, serviceAccountJson, int.Parse(port, CultureInfo.InvariantCulture));
+    await app.RunAsync().ConfigureAwait(false);
+    return 0;
+}
+
 var builder = Host.CreateApplicationBuilder(args);
 
-// All logs must go to stderr to avoid corrupting the MCP STDIO stream.
-builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
-builder.Logging.SetMinimumLevel(LogLevel.Warning);
-
-builder.Services
-    .AddHttpClient(nameof(SearchConsoleClient), http =>
-    {
-        http.Timeout = TimeSpan.FromSeconds(30);
-    });
-
-builder.Services.AddTransient<SearchConsoleClient>(sp =>
-{
-    var factory = sp.GetRequiredService<IHttpClientFactory>();
-    return SearchConsoleClient.Create(serviceAccountJson, factory.CreateClient(nameof(SearchConsoleClient)));
-});
+Hosting.ConfigureCommonServices(builder, serviceAccountJson);
 
 builder.Services
     .AddMcpServer()
-    .WithRequestFilters(requestFilters =>
-    {
-        // Repair a widespread MCP client bug where array-typed arguments arrive
-        // JSON-encoded as a string instead of a genuine array (see
-        // StringifiedArgsCoercion.cs).
-        requestFilters.AddCallToolFilter(next => async (context, cancellationToken) =>
-        {
-            if (context.Params is not null)
-                StringifiedArgsCoercion.CoerceStringifiedArrayArgs(context.Params, StringifiedArgsCoercion.ToolArrayFields);
-            return await next(context, cancellationToken).ConfigureAwait(false);
-        });
-    })
+    .WithStringifiedArgsCoercion()
     .WithStdioServerTransport()
     .WithTools<SearchConsoleTool>();
 
