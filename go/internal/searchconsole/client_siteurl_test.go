@@ -9,18 +9,6 @@ import (
 	"testing"
 )
 
-// newTestClient creates a Client with a custom HTTP client for testing (bypasses Google auth).
-func newTestClient(hc *http.Client) *Client {
-	return &Client{httpClient: hc}
-}
-
-// setAPIBaseURL overrides the API base URL for a test and returns a restore function.
-func setAPIBaseURL(newURL string) (restore func()) {
-	orig := apiBaseURL
-	apiBaseURL = newURL
-	return func() { apiBaseURL = orig }
-}
-
 func TestQuerySearchAnalytics_NormalizesBareInputToSCDomain(t *testing.T) {
 	var requestedPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -29,9 +17,9 @@ func TestQuerySearchAnalytics_NormalizesBareInputToSCDomain(t *testing.T) {
 		_, _ = w.Write([]byte(`{"rows":[]}`))
 	}))
 	defer srv.Close()
-	defer setAPIBaseURL(srv.URL)()
+	defer SetTestAPIBaseURL(srv.URL)()
 
-	client := newTestClient(srv.Client())
+	client := NewTestClient(srv.Client())
 	_, err := client.QuerySearchAnalytics(context.Background(), "devleader.ca", "2025-01-01", "2025-12-31", nil, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -80,9 +68,9 @@ func TestQuerySearchAnalytics_On403_RetriesWithResolvedURL(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	defer setAPIBaseURL(srv.URL)()
+	defer SetTestAPIBaseURL(srv.URL)()
 
-	client := newTestClient(srv.Client())
+	client := NewTestClient(srv.Client())
 	resp, err := client.QuerySearchAnalytics(
 		context.Background(), "https://www.devleader.ca/", "2025-01-01", "2025-12-31", nil, 10)
 	if err != nil {
@@ -129,9 +117,9 @@ func TestListSitemaps_On403_RetriesWithResolvedURL(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	defer setAPIBaseURL(srv.URL)()
+	defer SetTestAPIBaseURL(srv.URL)()
 
-	client := newTestClient(srv.Client())
+	client := NewTestClient(srv.Client())
 	result, err := client.ListSitemaps(context.Background(), "https://www.devleader.ca/")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

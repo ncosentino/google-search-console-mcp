@@ -50,6 +50,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	srv := newServer(client)
+
+	slog.Info("google-search-console-mcp starting", "version", version, "transport", "stdio")
+	if err := srv.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+		slog.Error("server stopped with error", "err", err)
+		os.Exit(1)
+	}
+}
+
+// newServer builds an *mcp.Server with all three tools registered against client,
+// independent of which transport (stdio, or a future http) will ultimately serve it.
+// Extracted so tests can exercise real tool registration/dispatch via an in-memory or
+// IOTransport session, instead of only unit-testing the handler functions directly.
+func newServer(client *searchconsole.Client) *mcp.Server {
 	srv := mcp.NewServer(&mcp.Implementation{
 		Name:    "google-search-console-mcp",
 		Version: version,
@@ -58,7 +72,7 @@ func main() {
 	mcp.AddTool(srv,
 		&mcp.Tool{
 			Name:        "query_search_analytics",
-			Description: "Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position grouped by the specified dimensions (query, page, country, device, date). The site_url parameter accepts flexible input: bare domain (\"devleader.ca\"), full URL (\"https://www.devleader.ca\"), or canonical GSC property format (\"sc-domain:devleader.ca\", \"https://www.devleader.ca/\"). The server normalizes the input and automatically retries with property discovery on 403 errors.",
+			Description: "Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position grouped by the specified dimensions (query, page, country, device, date). The site_url parameter accepts flexible input: bare domain (\"devleader.ca\"), full URL (\"https://www.devleader.ca\"), or canonical GSC property format (\"sc-domain:devleader.ca\", \"https://www.devleader.ca/\"). The server normalizes the input and automatically retries with property discovery on 403 errors. row_limit defaults to 1000 if omitted.",
 		},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input querySearchAnalyticsInput) (*mcp.CallToolResult, any, error) {
 			return querySearchAnalytics(ctx, client, input)
@@ -86,11 +100,7 @@ func main() {
 		},
 	)
 
-	slog.Info("google-search-console-mcp starting", "version", version, "transport", "stdio")
-	if err := srv.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
-		slog.Error("server stopped with error", "err", err)
-		os.Exit(1)
-	}
+	return srv
 }
 
 // querySearchAnalyticsInput is the input schema for the query_search_analytics tool.
@@ -99,7 +109,7 @@ type querySearchAnalyticsInput struct {
 	StartDate  string   `json:"start_date"`
 	EndDate    string   `json:"end_date"`
 	Dimensions []string `json:"dimensions"`
-	RowLimit   int      `json:"row_limit"`
+	RowLimit   int      `json:"row_limit,omitempty"`
 }
 
 // listSitesInput is the input schema for the list_sites tool (no parameters required).

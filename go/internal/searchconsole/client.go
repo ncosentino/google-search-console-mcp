@@ -51,6 +51,22 @@ func NewClient(serviceAccountJSON []byte) (*Client, error) {
 	return &Client{httpClient: base}, nil
 }
 
+// NewTestClient is exported solely for use in package-level tests, including tests in
+// other packages that need a Client backed by a fake HTTP server instead of real
+// Google OAuth2/Search Console endpoints.
+func NewTestClient(httpClient *http.Client) *Client {
+	return &Client{httpClient: httpClient}
+}
+
+// SetTestAPIBaseURL overrides the package-level Search Console API base URL, returning
+// a function that restores the original value. Exported solely for use in
+// package-level tests, including tests in other packages.
+func SetTestAPIBaseURL(newURL string) (restore func()) {
+	orig := apiBaseURL
+	apiBaseURL = newURL
+	return func() { apiBaseURL = orig }
+}
+
 // QuerySearchAnalytics queries search analytics data for the given site.
 // siteURL accepts any of: bare domain ("example.com"), URL ("https://example.com"),
 // or canonical GSC form ("sc-domain:example.com", "https://example.com/").
