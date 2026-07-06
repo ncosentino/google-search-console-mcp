@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace SearchConsoleMcp.Tests;
@@ -52,4 +53,34 @@ internal static class FakeResponses
         {
             Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
         };
+}
+
+/// <summary>
+/// Builds a throwaway (not a real Google credential) service account JSON payload
+/// with a cryptographically valid, freshly generated RSA keypair -- enough for
+/// GoogleServiceAccountAuth's RSA.ImportFromPem call to succeed at construction
+/// time, without needing a real Google-issued key. The JWT this key ultimately
+/// signs is never itself validated by a real Google endpoint in these tests: either
+/// no network call is reached at all (tool listing only), or a fake
+/// HttpMessageHandler intercepts the OAuth2 token exchange and returns a canned
+/// response regardless of the JWT's actual signature.
+/// </summary>
+internal static class FakeServiceAccount
+{
+    internal static byte[] JsonBytes(
+        string clientEmail = "test@test-project.iam.gserviceaccount.com",
+        string projectId = "test-project",
+        string privateKeyId = "test-key-id")
+    {
+        using var rsa = RSA.Create(2048);
+        var json = JsonSerializer.Serialize(new
+        {
+            type = "service_account",
+            project_id = projectId,
+            private_key_id = privateKeyId,
+            private_key = rsa.ExportRSAPrivateKeyPem(),
+            client_email = clientEmail,
+        });
+        return System.Text.Encoding.UTF8.GetBytes(json);
+    }
 }
