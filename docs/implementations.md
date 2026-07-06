@@ -19,8 +19,11 @@ Both the Go and C# implementations expose identical MCP tools with identical beh
 | MCP SDK | Official `modelcontextprotocol/go-sdk` | Official `ModelContextProtocol` (.NET) |
 | Auth implementation | `golang.org/x/oauth2/google` | Native RSA + HttpClient |
 | AOT compiled | Yes | Yes (Native AOT) |
+| Transports | stdio, HTTP | stdio only |
 
 Both binaries are fully self-contained. No Go toolchain, .NET runtime, Node.js, or Python is needed to run them.
+
+See [Transports](transports.md) for details on the Go binary's `--transport http` support. C# HTTP transport support is tracked separately and not yet available.
 
 ---
 
