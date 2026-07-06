@@ -362,6 +362,29 @@ func TestQuerySearchAnalyticsInput_RowLimit_IsNotRequired(t *testing.T) {
 	}
 }
 
+// TestQuerySearchAnalyticsInput_Dimensions_IsNotRequired confirms dimensions is
+// absent from the schema's required list. Regression test for a real bug
+// found while writing this repo's characterization tests for #7: dimensions
+// had no ",omitempty" on its json tag, so the generated schema wrongly marked
+// it required, even though omitting it and passing an explicit empty array
+// are functionally identical (apiSearchAnalyticsRequest.Dimensions is itself
+// ",omitempty", so a nil slice and an empty slice produce the same outbound
+// request) -- a real MCP client session omitting dimensions entirely (a very
+// plausible thing for an LLM-driven caller to do) failed schema validation
+// entirely.
+func TestQuerySearchAnalyticsInput_Dimensions_IsNotRequired(t *testing.T) {
+	t.Parallel()
+
+	schema, err := jsonschema.For[querySearchAnalyticsInput](nil)
+	if err != nil {
+		t.Fatalf("schema inference failed: %v", err)
+	}
+
+	if slices.Contains(schema.Required, "dimensions") {
+		t.Errorf("dimensions must not be in schema.Required (got %v)", schema.Required)
+	}
+}
+
 // TestListSites_InputSchema validates the production listSitesInputSchema variable to
 // ensure it is compatible with strict MCP clients (e.g. Copilot CLI) that require
 // explicit properties, required, and additionalProperties fields.
