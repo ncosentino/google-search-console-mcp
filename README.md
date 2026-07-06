@@ -286,6 +286,35 @@ GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 
 ---
 
+## Transports
+
+The Go binary defaults to **stdio** (everything above uses it) and also supports `--transport http` for remote/networked deployments:
+
+```bash
+./gsc-mcp-go-linux-amd64 --transport http --service-account-file /path/to/key.json
+```
+
+The server listens on the `PORT` environment variable (default `8080`). Point an HTTP-capable MCP client at the server instead of launching it as a subprocess:
+
+```json
+{
+  "mcpServers": {
+    "search-console": {
+      "type": "http",
+      "url": "http://localhost:8080/"
+    }
+  }
+}
+```
+
+**Security defaults:** Go's `net/http` doesn't validate the `Host` header by default, which would otherwise allow DNS rebinding against a locally-bound server -- the binary rejects any `Host` header outside `localhost`, `127.0.0.1`, `[::1]` unless you widen the allow-list with `--allowed-hosts` (comma-separated). It also rejects genuinely cross-site browser requests (CSRF) via Go's `http.CrossOriginProtection`, while allowing same-origin and non-browser (no `Origin` header) traffic.
+
+This is a transport flag, not a hosting product -- no Dockerfile, no cloud-provider automation, and no authentication in front of the MCP endpoint beyond the protections above. TLS termination and network exposure are your responsibility if you deploy this binary over HTTP. See the [Transports doc](https://github.devleader.ca/google-search-console-mcp/transports/) for the full reference.
+
+**C# support:** the C# binary is currently stdio-only.
+
+---
+
 ## Go vs C# -- Which Binary?
 
 Both implementations expose identical tools with identical behavior.
@@ -298,8 +327,9 @@ Both implementations expose identical tools with identical behavior.
 | Language | Go 1.26 | C# / .NET 10 |
 | MCP SDK | Official `go-sdk` | Official `ModelContextProtocol` |
 | Auth | `golang.org/x/oauth2/google` | Native RSA + HttpClient |
+| Transports | stdio, HTTP | stdio only |
 
-**Recommendation:** Both work great. Pick Go for smaller binary size, C# if you prefer the .NET ecosystem.
+**Recommendation:** Both work great. Pick Go for smaller binary size, faster startup, or if you need the HTTP transport today; pick C# if you prefer the .NET ecosystem and only need stdio.
 
 ---
 

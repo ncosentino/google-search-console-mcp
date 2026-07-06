@@ -1,12 +1,14 @@
 // Command google-search-console-mcp is an MCP server that exposes Google Search Console
-// search analytics as tools for AI assistants. It communicates via STDIO using the MCP protocol.
+// search analytics as tools for AI assistants. It supports STDIO transport (default) and HTTP transport.
 //
 // Usage:
 //
-//	google-search-console-mcp [--service-account-file <path>]
+//	google-search-console-mcp [--transport stdio|http] [--allowed-hosts <list>]
+//	    [--service-account-file <path>]
 //
 // Credential resolution order: --service-account-file flag,
 // GOOGLE_SERVICE_ACCOUNT_FILE env var, GOOGLE_SERVICE_ACCOUNT_JSON env var, .env file.
+// When --transport http, the PORT environment variable sets the listen port (default 8080).
 package main
 
 import (
@@ -16,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ncosentino/google-search-console-mcp/go/internal/config"
@@ -31,6 +34,9 @@ var listSitesInputSchema = json.RawMessage(`{"type":"object","properties":{},"re
 
 func main() {
 	serviceAccountFile := flag.String("service-account-file", "", "Path to Google service account JSON key file")
+	transport := flag.String("transport", "stdio", "Transport mode: stdio or http")
+	allowedHosts := flag.String("allowed-hosts", "localhost,127.0.0.1,[::1]",
+		"Comma-separated Host header allow-list for --transport http (protects against DNS rebinding)")
 	flag.Parse()
 
 	// All diagnostic output must go to stderr to avoid corrupting the MCP STDIO stream.
@@ -52,10 +58,15 @@ func main() {
 
 	srv := newServer(client)
 
-	slog.Info("google-search-console-mcp starting", "version", version, "transport", "stdio")
-	if err := srv.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
-		slog.Error("server stopped with error", "err", err)
-		os.Exit(1)
+	switch *transport {
+	case "http":
+		runHTTP(srv, splitAndTrim(*allowedHosts))
+	default:
+		slog.Info("google-search-console-mcp starting", "version", version, "transport", "stdio")
+		if err := srv.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+			slog.Error("server stopped with error", "err", err)
+			os.Exit(1)
+		}
 	}
 }
 
@@ -105,6 +116,18 @@ func newServer(client *searchconsole.Client) *mcp.Server {
 	)
 
 	return srv
+}
+
+// splitAndTrim splits a comma-separated flag value into a trimmed, non-empty slice.
+func splitAndTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // querySearchAnalyticsInput is the input schema for the query_search_analytics tool.

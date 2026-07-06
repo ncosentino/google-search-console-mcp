@@ -43,6 +43,7 @@ nav:
     - list_sitemaps: tools/list-sitemaps.md
   - Setup by Tool: setup-by-tool.md
   - Configuration: configuration.md
+  - Transports: transports.md
   - Go vs C#: implementations.md
   - Building from Source: building.md
   - Articles: articles.md
