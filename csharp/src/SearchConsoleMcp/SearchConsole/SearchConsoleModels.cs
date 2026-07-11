@@ -18,6 +18,7 @@ internal sealed record SearchAnalyticsResponse(
     string StartDate,
     string EndDate,
     IReadOnlyList<string>? Dimensions,
+    string SearchType,
     int RowCount,
     IReadOnlyList<SearchAnalyticsRow> Rows,
     DateTimeOffset QueriedAt);
@@ -133,6 +134,9 @@ internal sealed class SearchAnalyticsRequest
 
     [JsonPropertyName("dimensions")]
     public IReadOnlyList<string>? Dimensions { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
 
     [JsonPropertyName("rowLimit")]
     public int RowLimit { get; set; }

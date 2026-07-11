@@ -19,7 +19,23 @@ import (
 const (
 	gscScope    = "https://www.googleapis.com/auth/webmasters.readonly"
 	httpTimeout = 30 * time.Second
+
+	// defaultSearchType is the effective search type when the caller omits
+	// search_type, matching the upstream API's own documented default.
+	defaultSearchType = "web"
 )
+
+// validSearchTypes are the upstream Search Console API's supported values for
+// the search analytics "type" field. See
+// https://developers.google.com/webmaster-tools/v1/searchanalytics/query.
+var validSearchTypes = map[string]bool{
+	"web":        true,
+	"image":      true,
+	"video":      true,
+	"news":       true,
+	"discover":   true,
+	"googleNews": true,
+}
 
 // apiBaseURL is the base URL for the Google Search Console API.
 // It is a variable so tests can override it to point at a local test server.
@@ -70,15 +86,23 @@ func SetTestAPIBaseURL(newURL string) (restore func()) {
 // QuerySearchAnalytics queries search analytics data for the given site.
 // siteURL accepts any of: bare domain ("example.com"), URL ("https://example.com"),
 // or canonical GSC form ("sc-domain:example.com", "https://example.com/").
+// searchType filters results to one upstream-supported type ("web", "image",
+// "video", "news", "discover", "googleNews"); an empty string omits the field
+// from the outbound request entirely, which upstream defaults to "web".
 func (c *Client) QuerySearchAnalytics(
 	ctx context.Context,
 	siteURL string,
 	startDate, endDate string,
 	dimensions []string,
 	rowLimit int,
+	searchType string,
 ) (*SearchAnalyticsResponse, error) {
+	if searchType != "" && !validSearchTypes[searchType] {
+		return nil, fmt.Errorf(
+			"invalid search_type %q: must be one of web, image, video, news, discover, googleNews", searchType)
+	}
 	resolved := NormalizeSiteURL(siteURL)
-	result, err := c.querySearchAnalyticsWithURL(ctx, resolved, startDate, endDate, dimensions, rowLimit)
+	result, err := c.querySearchAnalyticsWithURL(ctx, resolved, startDate, endDate, dimensions, rowLimit, searchType)
 	if err != nil {
 		var apiErr *apiRequestError
 		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusForbidden {
@@ -88,7 +112,7 @@ func (c *Client) QuerySearchAnalytics(
 				return nil, err // return original 403 error
 			}
 			slog.Info("retrying with resolved property", "resolvedURL", resolvedURL)
-			return c.querySearchAnalyticsWithURL(ctx, resolvedURL, startDate, endDate, dimensions, rowLimit)
+			return c.querySearchAnalyticsWithURL(ctx, resolvedURL, startDate, endDate, dimensions, rowLimit, searchType)
 		}
 		return nil, err
 	}
@@ -101,6 +125,7 @@ func (c *Client) querySearchAnalyticsWithURL(
 	startDate, endDate string,
 	dimensions []string,
 	rowLimit int,
+	searchType string,
 ) (*SearchAnalyticsResponse, error) {
 	if rowLimit <= 0 {
 		rowLimit = 1000
@@ -109,6 +134,7 @@ func (c *Client) querySearchAnalyticsWithURL(
 		StartDate:  startDate,
 		EndDate:    endDate,
 		Dimensions: dimensions,
+		Type:       searchType,
 		RowLimit:   rowLimit,
 	}
 	bodyBytes, err := json.Marshal(reqBody)
@@ -148,14 +174,20 @@ func (c *Client) querySearchAnalyticsWithURL(
 		rows[i] = SearchAnalyticsRow(r)
 	}
 
+	effectiveSearchType := searchType
+	if effectiveSearchType == "" {
+		effectiveSearchType = defaultSearchType
+	}
+
 	return &SearchAnalyticsResponse{
-		SiteURL:     siteURL,
-		StartDate:   startDate,
-		EndDate:     endDate,
-		Dimensions:  dimensions,
-		RowCount:    len(rows),
-		Rows:        rows,
-		QueriedAt:   time.Now().UTC(),
+		SiteURL:    siteURL,
+		StartDate:  startDate,
+		EndDate:    endDate,
+		Dimensions: dimensions,
+		SearchType: effectiveSearchType,
+		RowCount:   len(rows),
+		Rows:       rows,
+		QueriedAt:  time.Now().UTC(),
 	}, nil
 }
 

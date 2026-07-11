@@ -40,6 +40,20 @@ public sealed class SearchConsoleToolTests
     }
 
     [Fact]
+    public async Task QuerySearchAnalytics_InvalidSearchType_ReturnsErrorResult()
+    {
+        var handler = new FakeMessageHandler(_ => FakeResponses.OkJson(new { rows = Array.Empty<object>() }));
+        var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.QuerySearchAnalytics(
+            "devleader.ca", "2025-01-01", "2025-12-31", dimensions: [], search_type: "youtube");
+
+        Assert.Contains("invalid search_type", result, StringComparison.Ordinal);
+        Assert.Equal(0, handler.CallCount);
+    }
+
+    [Fact]
     public async Task ListSites_Success_ReturnsSerializedResult()
     {
         var handler = new FakeMessageHandler(_ => FakeResponses.OkJson(new

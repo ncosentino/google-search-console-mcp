@@ -194,4 +194,37 @@ public sealed class HostingHttpTests
             await app.StopAsync();
         }
     }
+
+    /// <summary>
+    /// Confirms search_type (issue #22) flows end-to-end through real MCP schema
+    /// validation and tool dispatch, not just direct C# method calls.
+    /// </summary>
+    [Fact]
+    public async Task BuildHttpHost_CallQuerySearchAnalyticsTool_ViaRealSession_WithSearchType_ReturnsSuccessResult()
+    {
+        var handler = new FakeSearchConsoleHandler("""{"rows":[]}""");
+        await using var app = Hosting.BuildHttpHost([], FakeServiceAccountJson, port: 0, handler);
+        await app.StartAsync();
+        try
+        {
+            await using var client = await McpClient.CreateAsync(new HttpClientTransport(new HttpClientTransportOptions
+            {
+                Endpoint = ConnectableUri(app),
+            }));
+
+            var result = await client.CallToolAsync("query_search_analytics", new Dictionary<string, object?>
+            {
+                ["site_url"] = "devleader.ca",
+                ["start_date"] = "2025-01-01",
+                ["end_date"] = "2025-12-31",
+                ["search_type"] = "video",
+            });
+
+            Assert.NotEqual(true, result.IsError);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
 }

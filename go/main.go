@@ -87,7 +87,7 @@ func newServer(client *searchconsole.Client) *mcp.Server {
 	mcp.AddTool(srv,
 		&mcp.Tool{
 			Name:        "query_search_analytics",
-			Description: "Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position grouped by the specified dimensions (query, page, country, device, date). The site_url parameter accepts flexible input: bare domain (\"devleader.ca\"), full URL (\"https://www.devleader.ca\"), or canonical GSC property format (\"sc-domain:devleader.ca\", \"https://www.devleader.ca/\"). The server normalizes the input and automatically retries with property discovery on 403 errors. row_limit defaults to 1000 if omitted. dimensions may be omitted entirely or passed as an empty array to get aggregate totals -- both are equivalent.",
+			Description: "Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position grouped by the specified dimensions (query, page, country, device, date). The site_url parameter accepts flexible input: bare domain (\"devleader.ca\"), full URL (\"https://www.devleader.ca\"), or canonical GSC property format (\"sc-domain:devleader.ca\", \"https://www.devleader.ca/\"). The server normalizes the input and automatically retries with property discovery on 403 errors. row_limit defaults to 1000 if omitted. dimensions may be omitted entirely or passed as an empty array to get aggregate totals -- both are equivalent. search_type filters which Google Search results the metrics come from: \"web\" (default, the combined/All tab), \"image\", \"video\", \"news\", \"discover\", or \"googleNews\". Note: search_type=\"video\" reports clicks/impressions/CTR/position for Google Video search -- it is NOT the Video Indexing report and must not be treated as proof that any specific video is indexed, rendered, or eligible for rich results.",
 		},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input querySearchAnalyticsInput) (*mcp.CallToolResult, any, error) {
 			return querySearchAnalytics(ctx, client, input)
@@ -136,6 +136,7 @@ type querySearchAnalyticsInput struct {
 	StartDate  string   `json:"start_date"`
 	EndDate    string   `json:"end_date"`
 	Dimensions []string `json:"dimensions,omitempty"`
+	SearchType string   `json:"search_type,omitempty"`
 	RowLimit   int      `json:"row_limit,omitempty"`
 }
 
@@ -148,7 +149,7 @@ type listSitemapsInput struct {
 }
 
 func querySearchAnalytics(ctx context.Context, client *searchconsole.Client, input querySearchAnalyticsInput) (*mcp.CallToolResult, any, error) {
-	result, err := client.QuerySearchAnalytics(ctx, input.SiteURL, input.StartDate, input.EndDate, input.Dimensions, input.RowLimit)
+	result, err := client.QuerySearchAnalytics(ctx, input.SiteURL, input.StartDate, input.EndDate, input.Dimensions, input.RowLimit, input.SearchType)
 	if err != nil {
 		errResult := map[string]string{"error": fmt.Sprintf("querying search analytics: %v", err)}
 		b, _ := json.Marshal(errResult)

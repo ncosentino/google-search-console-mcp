@@ -187,6 +187,7 @@ Query clicks, impressions, CTR, and average position from Search Console.
 | `end_date` | string | Yes | -- | End date in `YYYY-MM-DD` format |
 | `dimensions` | string[] | No | `[]` | Group by: `query`, `page`, `country`, `device`, `date`. Empty array returns aggregate totals. |
 | `row_limit` | int | No | `1000` | Maximum rows to return (1-25000) |
+| `search_type` | string | No | `web` | Which Google Search results the metrics come from: `web`, `image`, `video`, `news`, `discover`, `googleNews`. Note: `video` reports Google Video search performance, not the Video Indexing report. See [full docs](https://www.devleader.ca/projects/google-search-console-mcp/tools/query-search-analytics/#search-types) for details. |
 
 **Example prompts:**
 
@@ -230,6 +231,7 @@ List submitted sitemaps for a property and their status.
   "startDate": "2026-01-01",
   "endDate": "2026-01-31",
   "dimensions": ["query", "page"],
+  "searchType": "web",
   "rowCount": 1234,
   "rows": [
     {
