@@ -24,6 +24,12 @@ internal sealed class SearchConsoleClient
 {
     private const string DefaultBaseUrl = "https://www.googleapis.com/webmasters/v3";
     private const string GscScope = "https://www.googleapis.com/auth/webmasters.readonly";
+    private const string DefaultSearchType = "web";
+
+    private static readonly HashSet<string> ValidSearchTypes = new(StringComparer.Ordinal)
+    {
+        "web", "image", "video", "news", "discover", "googleNews"
+    };
 
     private readonly string _baseUrl;
     private readonly HttpClient _httpClient;
@@ -127,19 +133,26 @@ internal sealed class SearchConsoleClient
         string endDate,
         IReadOnlyList<string>? dimensions,
         int rowLimit,
+        string? searchType = null,
         CancellationToken cancellationToken = default)
     {
+        if (!string.IsNullOrEmpty(searchType) && !ValidSearchTypes.Contains(searchType))
+        {
+            throw new InvalidOperationException(
+                $"invalid search_type '{searchType}': must be one of web, image, video, news, discover, googleNews");
+        }
+
         var resolved = SiteUrlResolver.Normalize(siteUrl);
         try
         {
             return await QuerySearchAnalyticsInternalAsync(
-                resolved, startDate, endDate, dimensions, rowLimit, cancellationToken).ConfigureAwait(false);
+                resolved, startDate, endDate, dimensions, rowLimit, searchType, cancellationToken).ConfigureAwait(false);
         }
         catch (GscApiException ex) when (ex.StatusCode == 403)
         {
             var resolvedUrl = await ResolveSiteUrlAsync(siteUrl, cancellationToken).ConfigureAwait(false);
             return await QuerySearchAnalyticsInternalAsync(
-                resolvedUrl, startDate, endDate, dimensions, rowLimit, cancellationToken).ConfigureAwait(false);
+                resolvedUrl, startDate, endDate, dimensions, rowLimit, searchType, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -149,6 +162,7 @@ internal sealed class SearchConsoleClient
         string endDate,
         IReadOnlyList<string>? dimensions,
         int rowLimit,
+        string? searchType,
         CancellationToken cancellationToken)
     {
         if (rowLimit <= 0) rowLimit = 1000;
@@ -158,6 +172,7 @@ internal sealed class SearchConsoleClient
             StartDate = startDate,
             EndDate = endDate,
             Dimensions = dimensions?.Count > 0 ? dimensions : null,
+            Type = string.IsNullOrEmpty(searchType) ? null : searchType,
             RowLimit = rowLimit
         };
 
@@ -180,7 +195,10 @@ internal sealed class SearchConsoleClient
             .Select(r => new SearchAnalyticsRow(r.Keys, r.Clicks, r.Impressions, r.Ctr, r.Position))
             .ToList();
 
-        return new SearchAnalyticsResponse(siteUrl, startDate, endDate, dimensions, rows.Count, rows, DateTimeOffset.UtcNow);
+        var effectiveSearchType = string.IsNullOrEmpty(searchType) ? DefaultSearchType : searchType;
+
+        return new SearchAnalyticsResponse(
+            siteUrl, startDate, endDate, dimensions, effectiveSearchType, rows.Count, rows, DateTimeOffset.UtcNow);
     }
 
     private async Task<string> ResolveSiteUrlAsync(string input, CancellationToken cancellationToken)

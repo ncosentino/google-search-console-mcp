@@ -20,7 +20,7 @@ func TestQuerySearchAnalytics_NormalizesBareInputToSCDomain(t *testing.T) {
 	defer SetTestAPIBaseURL(srv.URL)()
 
 	client := NewTestClient(srv.Client())
-	_, err := client.QuerySearchAnalytics(context.Background(), "devleader.ca", "2025-01-01", "2025-12-31", nil, 10)
+	_, err := client.QuerySearchAnalytics(context.Background(), "devleader.ca", "2025-01-01", "2025-12-31", nil, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestQuerySearchAnalytics_On403_RetriesWithResolvedURL(t *testing.T) {
 
 	client := NewTestClient(srv.Client())
 	resp, err := client.QuerySearchAnalytics(
-		context.Background(), "https://www.devleader.ca/", "2025-01-01", "2025-12-31", nil, 10)
+		context.Background(), "https://www.devleader.ca/", "2025-01-01", "2025-12-31", nil, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

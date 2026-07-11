@@ -10,19 +10,20 @@ namespace SearchConsoleMcp.Tools;
 internal sealed class SearchConsoleTool(SearchConsoleClient client)
 {
     [McpServerTool(Name = "query_search_analytics")]
-    [Description("Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position. Dimensions can be any combination of: query, page, country, device, date.")]
+    [Description("Query Google Search Console search analytics. Returns clicks, impressions, CTR, and average position grouped by the specified dimensions (query, page, country, device, date). row_limit defaults to 1000 if omitted. dimensions may be omitted entirely or passed as an empty array to get aggregate totals -- both are equivalent. search_type filters which Google Search results the metrics come from: \"web\" (default, the combined/All tab), \"image\", \"video\", \"news\", \"discover\", or \"googleNews\". Note: search_type=\"video\" reports clicks/impressions/CTR/position for Google Video search -- it is NOT the Video Indexing report and must not be treated as proof that any specific video is indexed, rendered, or eligible for rich results.")]
     internal async Task<string> QuerySearchAnalytics(
         [Description("The Search Console property. Accepts flexible input: bare domain (\"example.com\"), full URL (\"https://www.example.com\"), or canonical GSC form (\"sc-domain:example.com\", \"https://www.example.com/\"). The server normalizes the input and automatically retries with property discovery on 403 errors.")] string site_url,
         [Description("Start date in YYYY-MM-DD format.")] string start_date,
         [Description("End date in YYYY-MM-DD format.")] string end_date,
         [Description("Dimensions to group by. Valid values: query, page, country, device, date. May be omitted entirely or passed as an empty array to get aggregate totals -- both are equivalent.")] string[]? dimensions = null,
         [Description("Maximum number of rows to return (1-25000). Defaults to 1000.")] int row_limit = 1000,
+        [Description("Which Google Search results the metrics come from. One of: web, image, video, news, discover, googleNews. Defaults to web if omitted.")] string? search_type = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
             var result = await client
-                .QuerySearchAnalyticsAsync(site_url, start_date, end_date, dimensions, row_limit, cancellationToken)
+                .QuerySearchAnalyticsAsync(site_url, start_date, end_date, dimensions, row_limit, search_type, cancellationToken)
                 .ConfigureAwait(false);
             return JsonSerializer.Serialize(result, GscJsonContext.Default.SearchAnalyticsResponse);
         }

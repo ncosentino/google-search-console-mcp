@@ -385,6 +385,112 @@ func TestQuerySearchAnalyticsInput_Dimensions_IsNotRequired(t *testing.T) {
 	}
 }
 
+// TestQuerySearchAnalyticsInput_SearchType_IsNotRequired confirms search_type
+// (added for issue #22) is absent from the schema's required list, matching
+// its documented default ("web" when omitted).
+func TestQuerySearchAnalyticsInput_SearchType_IsNotRequired(t *testing.T) {
+	t.Parallel()
+
+	schema, err := jsonschema.For[querySearchAnalyticsInput](nil)
+	if err != nil {
+		t.Fatalf("schema inference failed: %v", err)
+	}
+
+	if slices.Contains(schema.Required, "search_type") {
+		t.Errorf("search_type must not be in schema.Required (got %v)", schema.Required)
+	}
+}
+
+// TestQuerySearchAnalytics_InvalidSearchType_ReturnsErrorContent confirms an
+// invalid search_type is surfaced as CallToolResult content rather than a Go
+// error, matching this repo's established error-handling convention, and
+// that no HTTP call reaches the fake server in the process.
+func TestQuerySearchAnalytics_InvalidSearchType_ReturnsErrorContent(t *testing.T) {
+	t.Parallel()
+
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"rows":[]}`))
+	}))
+	defer srv.Close()
+	defer searchconsole.SetTestAPIBaseURL(srv.URL)()
+
+	client := searchconsole.NewTestClient(srv.Client())
+	result, _, err := querySearchAnalytics(context.Background(), client, querySearchAnalyticsInput{
+		SiteURL:    "devleader.ca",
+		StartDate:  "2025-01-01",
+		EndDate:    "2025-12-31",
+		SearchType: "youtube",
+	})
+	if err != nil {
+		t.Fatalf("querySearchAnalytics returned a Go error instead of error content: %v", err)
+	}
+	text := result.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(text, "invalid search_type") {
+		t.Errorf("result text = %q, want it to mention %q", text, "invalid search_type")
+	}
+	if callCount != 0 {
+		t.Errorf("expected 0 HTTP calls for an invalid search_type, got %d", callCount)
+	}
+}
+
+// TestNewServer_CallQuerySearchAnalyticsTool_WithSearchType_ViaRealSession is
+// the search_type equivalent of
+// TestNewServer_CallQuerySearchAnalyticsTool_ViaRealSession: confirms
+// search_type flows end-to-end through real schema validation and tool
+// dispatch, not just the underlying Go function called directly.
+func TestNewServer_CallQuerySearchAnalyticsTool_WithSearchType_ViaRealSession(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"rows":[]}`))
+	}))
+	defer srv.Close()
+	defer searchconsole.SetTestAPIBaseURL(srv.URL)()
+
+	client := searchconsole.NewTestClient(srv.Client())
+	mcpServer := newServer(client)
+
+	ctx := context.Background()
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+
+	serverSession, err := mcpServer.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server.Connect: %v", err)
+	}
+	defer serverSession.Close()
+
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "test"}, nil)
+	clientSession, err := mcpClient.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect: %v", err)
+	}
+	defer clientSession.Close()
+
+	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+		Name: "query_search_analytics",
+		Arguments: map[string]any{
+			"site_url":    "devleader.ca",
+			"start_date":  "2025-01-01",
+			"end_date":    "2025-12-31",
+			"search_type": "video",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if result.IsError {
+		t.Errorf("CallTool returned an error result: %+v", result.Content)
+	}
+	if gotBody["type"] != "video" {
+		t.Errorf(`upstream request body "type" = %v, want %q`, gotBody["type"], "video")
+	}
+}
+
+
 // TestListSites_InputSchema validates the production listSitesInputSchema variable to
 // ensure it is compatible with strict MCP clients (e.g. Copilot CLI) that require
 // explicit properties, required, and additionalProperties fields.

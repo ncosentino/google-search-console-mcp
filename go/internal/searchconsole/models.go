@@ -14,13 +14,14 @@ type SearchAnalyticsRow struct {
 
 // SearchAnalyticsResponse is the parsed result of a search analytics query.
 type SearchAnalyticsResponse struct {
-	SiteURL     string               `json:"siteUrl"`
-	StartDate   string               `json:"startDate"`
-	EndDate     string               `json:"endDate"`
-	Dimensions  []string             `json:"dimensions,omitempty"`
-	RowCount    int                  `json:"rowCount"`
-	Rows        []SearchAnalyticsRow `json:"rows"`
-	QueriedAt   time.Time            `json:"queriedAt"`
+	SiteURL    string               `json:"siteUrl"`
+	StartDate  string               `json:"startDate"`
+	EndDate    string               `json:"endDate"`
+	Dimensions []string             `json:"dimensions,omitempty"`
+	SearchType string               `json:"searchType"`
+	RowCount   int                  `json:"rowCount"`
+	Rows       []SearchAnalyticsRow `json:"rows"`
+	QueriedAt  time.Time            `json:"queriedAt"`
 }
 
 // Site represents a Search Console property.
@@ -84,6 +85,7 @@ type apiSearchAnalyticsRequest struct {
 	StartDate  string   `json:"startDate"`
 	EndDate    string   `json:"endDate"`
 	Dimensions []string `json:"dimensions,omitempty"`
+	Type       string   `json:"type,omitempty"`
 	RowLimit   int      `json:"rowLimit,omitempty"`
 }
 
