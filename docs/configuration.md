@@ -68,3 +68,22 @@ Search Console has two property types. The server accepts flexible input and nor
 The server accepts bare domains, full URLs, or canonical forms as input to `site_url` parameters and normalizes them. On 403 errors, it automatically retries with property discovery to handle format mismatches.
 
 Use [`list_sites`](tools/list-sites.md) to see the exact canonical URLs your service account has access to.
+
+---
+
+## HTTP host
+
+```bash
+./gsc-mcp-go-linux-amd64 \
+  --transport http \
+  --listen-address 127.0.0.1 \
+  --port 8081
+```
+
+- `--listen-address` overrides `MCP_LISTEN_ADDRESS`; the default is `127.0.0.1`.
+- `--port` overrides `PORT`; the default is `8080`.
+- MCP is served at `/mcp`.
+- Health metadata is served at `/health`.
+
+Go accepts a comma-separated `--allowed-hosts` list. C# uses the standard
+semicolon-separated ASP.NET Core `AllowedHosts` setting.

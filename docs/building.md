@@ -78,6 +78,25 @@ Publish as a Native AOT self-contained binary:
 
 ---
 
+## Running HTTP locally
+
+```bash
+cd go
+go run . --transport http --listen-address 127.0.0.1 --port 8081 \
+  --service-account-file /path/to/key.json
+```
+
+```bash
+cd csharp
+dotnet run --project src/SearchConsoleMcp -- \
+  --transport http --listen-address 127.0.0.1 --port 8081 \
+  --service-account-file /path/to/key.json
+```
+
+Both serve MCP at `/mcp` and health metadata at `/health`.
+
+---
+
 ## Contributing
 
 1. Open an issue describing the bug or feature before submitting a PR
