@@ -321,8 +321,8 @@ session affinity.
 
 The HTTP host does not authenticate ordinary MCP callers. Keep it on loopback
 or place it behind TLS and an authenticated reverse proxy. See
-[Shared Service](https://github.devleader.ca/google-search-console-mcp/shared-service/)
-and [Transports](https://github.devleader.ca/google-search-console-mcp/transports/).
+[Shared Service](https://www.devleader.ca/projects/google-search-console-mcp/shared-service/)
+and [Transports](https://www.devleader.ca/projects/google-search-console-mcp/transports/).
 
 ---
 
