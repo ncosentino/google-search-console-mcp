@@ -47,6 +47,10 @@ func main() {
 	allowedHosts := flag.String("allowed-hosts", "localhost,127.0.0.1,[::1]",
 		"Comma-separated Host header allow-list for --transport http (protects against DNS rebinding)")
 	flag.Parse()
+	explicitFlags := make(map[string]bool)
+	flag.Visit(func(definedFlag *flag.Flag) {
+		explicitFlags[definedFlag.Name] = true
+	})
 
 	// All diagnostic output must go to stderr to avoid corrupting the MCP STDIO stream.
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -69,7 +73,15 @@ func main() {
 
 	switch *transport {
 	case "http":
-		httpPort, err := resolveHTTPPort(*port)
+		httpListenAddress, err := resolveHTTPListenAddress(
+			*listenAddress,
+			explicitFlags["listen-address"],
+		)
+		if err != nil {
+			slog.Error("invalid HTTP listen address", "err", err)
+			os.Exit(1)
+		}
+		httpPort, err := resolveHTTPPort(*port, explicitFlags["port"])
 		if err != nil {
 			slog.Error("invalid HTTP port", "err", err)
 			os.Exit(1)
@@ -81,7 +93,7 @@ func main() {
 		)
 		defer stop()
 		if err := runHTTP(ctx, srv, httpServerOptions{
-			ListenAddress: resolveHTTPListenAddress(*listenAddress),
+			ListenAddress: httpListenAddress,
 			Port:          httpPort,
 			AllowedHosts:  splitAndTrim(*allowedHosts),
 			ShutdownToken: strings.TrimSpace(os.Getenv("MCP_SHUTDOWN_TOKEN")),

@@ -185,18 +185,22 @@ func serveShutdown(
 	requestShutdown()
 }
 
-func resolveHTTPListenAddress(flagValue string) string {
-	if address := strings.TrimSpace(flagValue); address != "" {
-		return address
+func resolveHTTPListenAddress(flagValue string, explicitlySet bool) (string, error) {
+	if explicitlySet {
+		address := strings.TrimSpace(flagValue)
+		if address == "" {
+			return "", fmt.Errorf("listen address must not be empty")
+		}
+		return address, nil
 	}
 	if address := strings.TrimSpace(os.Getenv("MCP_LISTEN_ADDRESS")); address != "" {
-		return address
+		return address, nil
 	}
-	return defaultHTTPListenAddress
+	return defaultHTTPListenAddress, nil
 }
 
-func resolveHTTPPort(flagValue int) (int, error) {
-	if flagValue != 0 {
+func resolveHTTPPort(flagValue int, explicitlySet bool) (int, error) {
+	if explicitlySet {
 		return validateHTTPPort(flagValue)
 	}
 	if value := strings.TrimSpace(os.Getenv("PORT")); value != "" {

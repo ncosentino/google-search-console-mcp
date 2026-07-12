@@ -66,7 +66,7 @@ internal static class Hosting
         app.Use(async (context, next) =>
         {
             if (context.Request.Path.StartsWithSegments(McpPath) &&
-                !IsAllowedOrigin(context.Request, context.Request.Headers.Origin))
+                !IsCrossOriginRequestAllowed(context.Request))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
@@ -140,8 +140,26 @@ internal static class Hosting
         });
     }
 
-    internal static bool IsAllowedOrigin(HttpRequest request, StringValues origins)
+    internal static bool IsCrossOriginRequestAllowed(HttpRequest request)
     {
+        if (HttpMethods.IsGet(request.Method) ||
+            HttpMethods.IsHead(request.Method) ||
+            HttpMethods.IsOptions(request.Method))
+        {
+            return true;
+        }
+
+        var fetchSite = request.Headers["Sec-Fetch-Site"].ToString();
+        if (fetchSite is "same-origin" or "none")
+        {
+            return true;
+        }
+        if (fetchSite.Length != 0)
+        {
+            return false;
+        }
+
+        StringValues origins = request.Headers.Origin;
         if (StringValues.IsNullOrEmpty(origins))
         {
             return true;
@@ -153,11 +171,10 @@ internal static class Hosting
             return false;
         }
 
-        var requestPort = request.Host.Port ?? DefaultPort(request.Scheme);
-        var originPort = origin.IsDefaultPort ? DefaultPort(origin.Scheme) : origin.Port;
-        return string.Equals(request.Scheme, origin.Scheme, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(request.Host.Host, origin.Host, StringComparison.OrdinalIgnoreCase) &&
-            requestPort == originPort;
+        return string.Equals(
+            origin.Authority,
+            request.Host.Value,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool HasBearerToken(HttpRequest request, string expectedToken)
@@ -179,9 +196,6 @@ internal static class Hosting
         address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
             ? $"[{listenAddress}]"
             : listenAddress;
-
-    private static int DefaultPort(string scheme) =>
-        string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ? 443 : 80;
 
     private static string GetServiceVersion()
     {

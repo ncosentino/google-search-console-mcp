@@ -251,7 +251,7 @@ func TestNewHTTPServer_DefaultsToLoopbackAddress(t *testing.T) {
 
 func TestResolveHTTPPort(t *testing.T) {
 	t.Setenv("PORT", "9999")
-	got, err := resolveHTTPPort(0)
+	got, err := resolveHTTPPort(0, false)
 	if err != nil {
 		t.Fatalf("resolveHTTPPort: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestResolveHTTPPort(t *testing.T) {
 	}
 
 	t.Setenv("PORT", "")
-	got, err = resolveHTTPPort(0)
+	got, err = resolveHTTPPort(0, false)
 	if err != nil {
 		t.Fatalf("resolveHTTPPort: %v", err)
 	}
@@ -268,29 +268,44 @@ func TestResolveHTTPPort(t *testing.T) {
 		t.Errorf("port = %d, want %d", got, defaultHTTPPort)
 	}
 
-	got, err = resolveHTTPPort(9000)
+	got, err = resolveHTTPPort(9000, true)
 	if err != nil {
 		t.Fatalf("resolveHTTPPort flag: %v", err)
 	}
 	if got != 9000 {
 		t.Errorf("flag port = %d, want 9000", got)
 	}
+
+	if _, err := resolveHTTPPort(0, true); err == nil {
+		t.Fatal("explicit zero port returned nil error")
+	}
 }
 
 func TestResolveHTTPPort_RejectsInvalidEnvironmentValue(t *testing.T) {
 	t.Setenv("PORT", "invalid")
-	if _, err := resolveHTTPPort(0); err == nil {
+	if _, err := resolveHTTPPort(0, false); err == nil {
 		t.Fatal("resolveHTTPPort returned nil error")
 	}
 }
 
 func TestResolveHTTPListenAddress(t *testing.T) {
 	t.Setenv("MCP_LISTEN_ADDRESS", "192.0.2.10")
-	if got := resolveHTTPListenAddress(""); got != "192.0.2.10" {
+	got, err := resolveHTTPListenAddress("", false)
+	if err != nil {
+		t.Fatalf("resolveHTTPListenAddress: %v", err)
+	}
+	if got != "192.0.2.10" {
 		t.Errorf("address = %q, want 192.0.2.10", got)
 	}
-	if got := resolveHTTPListenAddress("127.0.0.2"); got != "127.0.0.2" {
+	got, err = resolveHTTPListenAddress("127.0.0.2", true)
+	if err != nil {
+		t.Fatalf("resolveHTTPListenAddress flag: %v", err)
+	}
+	if got != "127.0.0.2" {
 		t.Errorf("flag address = %q, want 127.0.0.2", got)
+	}
+	if _, err := resolveHTTPListenAddress("", true); err == nil {
+		t.Fatal("explicit empty address returned nil error")
 	}
 }
 

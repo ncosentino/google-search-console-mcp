@@ -320,15 +320,63 @@ public sealed class HostingHttpTests
     }
 
     [Fact]
-    public void IsAllowedOrigin_AcceptsSameOrigin()
+    public void IsCrossOriginRequestAllowed_AcceptsSameOrigin()
     {
         var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Post;
         context.Request.Scheme = "http";
         context.Request.Host = new HostString("127.0.0.1", 8080);
+        context.Request.Headers.Origin = "http://127.0.0.1:8080";
 
-        Assert.True(Hosting.IsAllowedOrigin(
-            context.Request,
-            "http://127.0.0.1:8080"));
+        Assert.True(Hosting.IsCrossOriginRequestAllowed(context.Request));
+    }
+
+    [Fact]
+    public async Task BuildHttpHost_RejectsCrossSiteFetchMetadataWithoutOrigin()
+    {
+        await using var app = Hosting.BuildHttpHost([], FakeServiceAccountJson, port: 0);
+        await app.StartAsync();
+        try
+        {
+            using var httpClient = new HttpClient();
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                ConnectableUri(app, Hosting.McpPath));
+            request.Headers.Add("Sec-Fetch-Site", "cross-site");
+            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+
+            using var response = await httpClient.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task BuildHttpHost_AllowsSafeCrossSiteMethod()
+    {
+        await using var app = Hosting.BuildHttpHost([], FakeServiceAccountJson, port: 0);
+        await app.StartAsync();
+        try
+        {
+            using var httpClient = new HttpClient();
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                ConnectableUri(app, Hosting.McpPath));
+            request.Headers.Add("Sec-Fetch-Site", "cross-site");
+            request.Headers.Add("Origin", "https://evil.example");
+
+            using var response = await httpClient.SendAsync(request);
+
+            Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
     }
 
     [Fact]
