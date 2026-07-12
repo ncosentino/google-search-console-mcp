@@ -290,28 +290,39 @@ GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 
 ## Transports
 
-Both binaries default to **stdio** (everything above uses it) and also support `--transport http` for remote/networked deployments:
+Both binaries default to **stdio** and also support one shared Streamable HTTP
+service for every agent session:
 
 ```bash
-./gsc-mcp-go-linux-amd64 --transport http --service-account-file /path/to/key.json
+./gsc-mcp-go-linux-amd64 \
+  --transport http \
+  --listen-address 127.0.0.1 \
+  --port 8081 \
+  --service-account-file /path/to/key.json
 ```
 
-The server listens on the `PORT` environment variable (default `8080`). Point an HTTP-capable MCP client at the server instead of launching it as a subprocess:
+The MCP endpoint is `/mcp`; supervisors can probe `/health`.
 
 ```json
 {
   "mcpServers": {
     "search-console": {
       "type": "http",
-      "url": "http://localhost:8080/"
+      "url": "http://127.0.0.1:8081/mcp",
+      "tools": ["*"]
     }
   }
 }
 ```
 
-**Security defaults:** neither Go's `net/http` nor C#'s Kestrel validate the `Host` header by default, which would otherwise allow DNS rebinding against a locally-bound server. Both binaries reject any `Host` header outside `localhost`, `127.0.0.1`, `[::1]` unless you explicitly widen the allow-list -- `--allowed-hosts` (comma-separated) for Go, the standard `AllowedHosts` ASP.NET Core config key (semicolon-separated, settable via `--AllowedHosts` on the command line) for C#. Go additionally rejects genuinely cross-site browser requests (CSRF) via `http.CrossOriginProtection`, while allowing same-origin and non-browser (no `Origin` header) traffic; C# has no equivalent yet.
+Both implementations default to loopback, validate the Host and Origin
+boundaries, limit request sizes and HTTP timeouts, and run statelessly without
+session affinity.
 
-This is a transport flag, not a hosting product -- no Dockerfile, no cloud-provider automation, and no authentication in front of the MCP endpoint beyond the protections above. TLS termination and network exposure are your responsibility if you deploy either binary over HTTP. See the [Transports doc](https://github.devleader.ca/google-search-console-mcp/transports/) for the full reference.
+The HTTP host does not authenticate ordinary MCP callers. Keep it on loopback
+or place it behind TLS and an authenticated reverse proxy. See
+[Shared Service](https://github.devleader.ca/google-search-console-mcp/shared-service/)
+and [Transports](https://github.devleader.ca/google-search-console-mcp/transports/).
 
 ---
 

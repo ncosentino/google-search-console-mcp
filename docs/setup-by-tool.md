@@ -113,6 +113,36 @@ You can also pass the service account file path as a CLI argument instead of an 
 
 ---
 
+## Shared Streamable HTTP
+
+Start one server process:
+
+```bash
+./gsc-mcp-go-linux-amd64 \
+  --transport http \
+  --listen-address 127.0.0.1 \
+  --port 8081 \
+  --service-account-file /path/to/service-account.json
+```
+
+Then configure every local agent session to use it:
+
+```json
+{
+  "mcpServers": {
+    "google-search-console": {
+      "type": "http",
+      "url": "http://127.0.0.1:8081/mcp",
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+See [Shared Service](shared-service.md) for lifecycle and startup management.
+
+---
+
 ## Troubleshooting
 
 **403 errors:** The server automatically retries with property discovery on 403 responses to handle property URL format mismatches. If you're still getting errors, use [`list_sites`](tools/list-sites.md) to confirm the exact property URL your service account can access.

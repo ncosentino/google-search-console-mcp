@@ -3,12 +3,13 @@
 //
 // Usage:
 //
-//	google-search-console-mcp [--transport stdio|http] [--allowed-hosts <list>]
+//	google-search-console-mcp [--transport stdio|http]
+//	    [--listen-address <address>] [--port <port>] [--allowed-hosts <list>]
 //	    [--service-account-file <path>]
 //
 // Credential resolution order: --service-account-file flag,
 // GOOGLE_SERVICE_ACCOUNT_FILE env var, GOOGLE_SERVICE_ACCOUNT_JSON env var, .env file.
-// When --transport http, the PORT environment variable sets the listen port (default 8080).
+// When --transport http, MCP_LISTEN_ADDRESS and PORT configure the listener.
 package main
 
 import (
@@ -18,7 +19,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ncosentino/google-search-console-mcp/go/internal/config"
@@ -35,9 +38,19 @@ var listSitesInputSchema = json.RawMessage(`{"type":"object","properties":{},"re
 func main() {
 	serviceAccountFile := flag.String("service-account-file", "", "Path to Google service account JSON key file")
 	transport := flag.String("transport", "stdio", "Transport mode: stdio or http")
+	listenAddress := flag.String(
+		"listen-address",
+		"",
+		"HTTP listen address (default MCP_LISTEN_ADDRESS or 127.0.0.1)",
+	)
+	port := flag.Int("port", 0, "HTTP listen port (default PORT or 8080)")
 	allowedHosts := flag.String("allowed-hosts", "localhost,127.0.0.1,[::1]",
 		"Comma-separated Host header allow-list for --transport http (protects against DNS rebinding)")
 	flag.Parse()
+	explicitFlags := make(map[string]bool)
+	flag.Visit(func(definedFlag *flag.Flag) {
+		explicitFlags[definedFlag.Name] = true
+	})
 
 	// All diagnostic output must go to stderr to avoid corrupting the MCP STDIO stream.
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -60,13 +73,43 @@ func main() {
 
 	switch *transport {
 	case "http":
-		runHTTP(srv, splitAndTrim(*allowedHosts))
-	default:
+		httpListenAddress, err := resolveHTTPListenAddress(
+			*listenAddress,
+			explicitFlags["listen-address"],
+		)
+		if err != nil {
+			slog.Error("invalid HTTP listen address", "err", err)
+			os.Exit(1)
+		}
+		httpPort, err := resolveHTTPPort(*port, explicitFlags["port"])
+		if err != nil {
+			slog.Error("invalid HTTP port", "err", err)
+			os.Exit(1)
+		}
+		ctx, stop := signal.NotifyContext(
+			context.Background(),
+			os.Interrupt,
+			syscall.SIGTERM,
+		)
+		defer stop()
+		if err := runHTTP(ctx, srv, httpServerOptions{
+			ListenAddress: httpListenAddress,
+			Port:          httpPort,
+			AllowedHosts:  splitAndTrim(*allowedHosts),
+			ShutdownToken: strings.TrimSpace(os.Getenv("MCP_SHUTDOWN_TOKEN")),
+		}); err != nil {
+			slog.Error("server stopped with error", "err", err)
+			os.Exit(1)
+		}
+	case "stdio":
 		slog.Info("google-search-console-mcp starting", "version", version, "transport", "stdio")
 		if err := srv.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 			slog.Error("server stopped with error", "err", err)
 			os.Exit(1)
 		}
+	default:
+		slog.Error("invalid transport", "transport", *transport, "expected", "stdio or http")
+		os.Exit(1)
 	}
 }
 

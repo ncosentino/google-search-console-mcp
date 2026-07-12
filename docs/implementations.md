@@ -20,10 +20,15 @@ Both the Go and C# implementations expose identical MCP tools with identical beh
 | Auth implementation | `golang.org/x/oauth2/google` | Native RSA + HttpClient |
 | AOT compiled | Yes | Yes (Native AOT) |
 | Transports | stdio, HTTP | stdio, HTTP |
+| HTTP mode | Stateless | Stateless |
+| Default listener | `127.0.0.1:8080` | `127.0.0.1:8080` |
+| HTTP endpoints | `/mcp`, `/health` | `/mcp`, `/health` |
 
 Both binaries are fully self-contained. No Go toolchain, .NET runtime, Node.js, or Python is needed to run them.
 
-See [Transports](transports.md) for details on `--transport http` support (identical behavior on both, with one cosmetic difference: allow-list rejection returns `403` on Go vs `400` on C#, per each platform's own HTTP framework conventions). Go additionally has cross-origin (CSRF) protection; C# doesn't yet, since ASP.NET Core has no shipped equivalent.
+See [Transports](transports.md) for details on the matching shared HTTP
+contract. Allow-list rejection returns `403` on Go and `400` on C# according
+to each framework's conventions.
 
 ---
 

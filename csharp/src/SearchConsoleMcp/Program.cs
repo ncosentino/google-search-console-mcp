@@ -1,10 +1,26 @@
-using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ModelContextProtocol.Server;
 using SearchConsoleMcp;
 using SearchConsoleMcp.Config;
 using SearchConsoleMcp.Tools;
+
+if (ServerOptions.IsHelpRequested(args))
+{
+    await Console.Out.WriteLineAsync(ServerOptions.Usage).ConfigureAwait(false);
+    return 0;
+}
+
+ServerOptions options;
+try
+{
+    options = ServerOptions.Parse(args);
+}
+catch (ArgumentException exception)
+{
+    await Console.Error.WriteLineAsync($"ERROR: {exception.Message}").ConfigureAwait(false);
+    return 1;
+}
 
 var serviceAccountFilePath = args.SkipWhile(a => a != "--service-account-file").Skip(1).FirstOrDefault();
 var serviceAccountJson = ServiceAccountResolver.Resolve(serviceAccountFilePath);
@@ -19,13 +35,14 @@ if (serviceAccountJson is null || serviceAccountJson.Length == 0)
     return 1;
 }
 
-// --transport has no environment-variable fallback, matching the Go implementation.
-string transport = args.SkipWhile(a => a != "--transport").Skip(1).FirstOrDefault() ?? "stdio";
-
-if (transport == "http")
+if (options.Transport == "http")
 {
-    var port = Environment.GetEnvironmentVariable("PORT") is { Length: > 0 } portEnv ? portEnv : "8080";
-    var app = Hosting.BuildHttpHost(args, serviceAccountJson, int.Parse(port, CultureInfo.InvariantCulture));
+    var app = Hosting.BuildHttpHost(
+        args,
+        serviceAccountJson,
+        options.Port,
+        listenAddress: options.ListenAddress,
+        shutdownToken: options.ShutdownToken);
     await app.RunAsync().ConfigureAwait(false);
     return 0;
 }
