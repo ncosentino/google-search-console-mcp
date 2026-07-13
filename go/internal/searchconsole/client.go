@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2/google"
@@ -275,13 +277,23 @@ func (c *Client) listSitemapsWithURL(ctx context.Context, siteURL string) (*Site
 
 	sitemaps := make([]Sitemap, len(raw.Sitemap))
 	for i, s := range raw.Sitemap {
+		warnings, warningsDiagnostic := parseSitemapCount("warnings", s.Warnings)
+		errorsCount, errorsDiagnostic := parseSitemapCount("errors", s.Errors)
+		diagnostics := make([]SitemapFieldDiagnostic, 0, 2)
+		if warningsDiagnostic != nil {
+			diagnostics = append(diagnostics, *warningsDiagnostic)
+		}
+		if errorsDiagnostic != nil {
+			diagnostics = append(diagnostics, *errorsDiagnostic)
+		}
 		sm := Sitemap{
 			Path:            s.Path,
 			IsPending:       s.IsPending,
 			IsSitemapsIndex: s.IsSitemapsIndex,
 			Type:            s.Type,
-			Warnings:        s.Warnings,
-			Errors:          s.Errors,
+			Warnings:        warnings,
+			Errors:          errorsCount,
+			Diagnostics:     diagnostics,
 		}
 		if t, err := time.Parse(time.RFC3339, s.LastSubmitted); err == nil {
 			sm.LastSubmitted = t
@@ -293,6 +305,30 @@ func (c *Client) listSitemapsWithURL(ctx context.Context, siteURL string) (*Site
 	}
 
 	return &SitemapList{SiteURL: siteURL, Sitemaps: sitemaps, QueriedAt: time.Now().UTC()}, nil
+}
+
+func parseSitemapCount(field string, raw json.RawMessage) (*int64, *SitemapFieldDiagnostic) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil, nil
+	}
+
+	if value, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+		return &value, nil
+	}
+
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		if value, parseErr := strconv.ParseInt(strings.TrimSpace(text), 10, 64); parseErr == nil {
+			return &value, nil
+		}
+	}
+
+	return nil, &SitemapFieldDiagnostic{
+		Field:    field,
+		RawValue: trimmed,
+		Warning:  "value is not an integer or numeric string",
+	}
 }
 
 func truncate(s string, max int) string {

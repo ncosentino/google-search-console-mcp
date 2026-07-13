@@ -85,7 +85,11 @@ public sealed class SearchConsoleToolTests
     {
         var handler = new FakeMessageHandler(_ => FakeResponses.OkJson(new
         {
-            sitemap = new[] { new { path = "https://devleader.ca/sitemap.xml", isPending = false, isSitemapsIndex = false, type = "sitemap", warnings = 0, errors = 0 } }
+            sitemap = new object[]
+            {
+                new { path = "https://devleader.ca/sitemap.xml", isPending = false, isSitemapsIndex = false, type = "sitemap", warnings = "2", errors = (object)0 },
+                new { path = "https://devleader.ca/news.xml", isPending = false, isSitemapsIndex = false, type = "sitemap", warnings = (object?)null, errors = "invalid" }
+            }
         }));
         var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
         var tool = new SearchConsoleTool(client);
@@ -93,6 +97,12 @@ public sealed class SearchConsoleToolTests
         var result = await tool.ListSitemaps("devleader.ca");
 
         Assert.Contains("sitemap.xml", result, StringComparison.Ordinal);
+        Assert.Contains("\"warnings\":2", result, StringComparison.Ordinal);
+        Assert.Contains("\"warnings\":null", result, StringComparison.Ordinal);
+        Assert.Contains("\"errors\":null", result, StringComparison.Ordinal);
+        Assert.Contains("\"diagnostics\"", result, StringComparison.Ordinal);
+        Assert.Contains("\"rawValue\"", result, StringComparison.Ordinal);
+        Assert.Contains("invalid", result, StringComparison.Ordinal);
     }
 
     [Fact]

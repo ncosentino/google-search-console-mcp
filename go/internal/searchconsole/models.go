@@ -1,7 +1,10 @@
 // Package searchconsole provides types for the Google Search Console API.
 package searchconsole
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // SearchAnalyticsRow is a single row from a search analytics query.
 type SearchAnalyticsRow struct {
@@ -26,7 +29,7 @@ type SearchAnalyticsResponse struct {
 
 // Site represents a Search Console property.
 type Site struct {
-	SiteURL        string `json:"siteUrl"`
+	SiteURL         string `json:"siteUrl"`
 	PermissionLevel string `json:"permissionLevel"`
 }
 
@@ -38,14 +41,23 @@ type SiteList struct {
 
 // Sitemap represents a submitted sitemap.
 type Sitemap struct {
-	Path          string    `json:"path"`
-	LastSubmitted time.Time `json:"lastSubmitted,omitempty"`
-	IsPending     bool      `json:"isPending"`
-	IsSitemapsIndex bool    `json:"isSitemapsIndex"`
-	Type          string    `json:"type"`
-	LastDownloaded time.Time `json:"lastDownloaded,omitempty"`
-	Warnings      int64     `json:"warnings"`
-	Errors        int64     `json:"errors"`
+	Path            string                   `json:"path"`
+	LastSubmitted   time.Time                `json:"lastSubmitted,omitempty"`
+	IsPending       bool                     `json:"isPending"`
+	IsSitemapsIndex bool                     `json:"isSitemapsIndex"`
+	Type            string                   `json:"type"`
+	LastDownloaded  time.Time                `json:"lastDownloaded,omitempty"`
+	Warnings        *int64                   `json:"warnings"`
+	Errors          *int64                   `json:"errors"`
+	Diagnostics     []SitemapFieldDiagnostic `json:"diagnostics,omitempty"`
+}
+
+// SitemapFieldDiagnostic records a malformed optional counter without
+// discarding the rest of the sitemap list response.
+type SitemapFieldDiagnostic struct {
+	Field    string `json:"field"`
+	RawValue string `json:"rawValue,omitempty"`
+	Warning  string `json:"warning"`
 }
 
 // SitemapList is the result of listing sitemaps for a property.
@@ -58,7 +70,7 @@ type SitemapList struct {
 // --- Search Console API raw response types ---
 
 type apiSiteEntry struct {
-	SiteURL        string `json:"siteUrl"`
+	SiteURL         string `json:"siteUrl"`
 	PermissionLevel string `json:"permissionLevel"`
 }
 
@@ -67,14 +79,14 @@ type apiSiteListResponse struct {
 }
 
 type apiSitemapEntry struct {
-	Path           string `json:"path"`
-	LastSubmitted  string `json:"lastSubmitted"`
-	IsPending      bool   `json:"isPending"`
-	IsSitemapsIndex bool  `json:"isSitemapsIndex"`
-	Type           string `json:"type"`
-	LastDownloaded string `json:"lastDownloaded"`
-	Warnings       int64  `json:"warnings"`
-	Errors         int64  `json:"errors"`
+	Path            string          `json:"path"`
+	LastSubmitted   string          `json:"lastSubmitted"`
+	IsPending       bool            `json:"isPending"`
+	IsSitemapsIndex bool            `json:"isSitemapsIndex"`
+	Type            string          `json:"type"`
+	LastDownloaded  string          `json:"lastDownloaded"`
+	Warnings        json.RawMessage `json:"warnings"`
+	Errors          json.RawMessage `json:"errors"`
 }
 
 type apiSitemapListResponse struct {

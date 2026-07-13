@@ -169,7 +169,7 @@ func TestListSites_APIError_ReturnsErrorContent(t *testing.T) {
 func TestListSitemaps_Success_ReturnsMarshaledResult(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"sitemap":[{"path":"https://devleader.ca/sitemap.xml","isPending":false,"isSitemapsIndex":false,"type":"sitemap","warnings":0,"errors":0}]}`))
+		_, _ = w.Write([]byte(`{"sitemap":[{"path":"https://devleader.ca/sitemap.xml","isPending":false,"isSitemapsIndex":false,"type":"sitemap","warnings":"2","errors":0},{"path":"https://devleader.ca/news.xml","isPending":false,"isSitemapsIndex":false,"type":"sitemap","warnings":null,"errors":"invalid"}]}`))
 	}))
 	defer srv.Close()
 	defer searchconsole.SetTestAPIBaseURL(srv.URL)()
@@ -185,6 +185,11 @@ func TestListSitemaps_Success_ReturnsMarshaledResult(t *testing.T) {
 	text := result.Content[0].(*mcp.TextContent).Text
 	if !strings.Contains(text, "sitemap.xml") {
 		t.Errorf("result text = %q, want it to contain %q", text, "sitemap.xml")
+	}
+	for _, want := range []string{`"warnings":2`, `"warnings":null`, `"errors":null`, `"diagnostics"`, `"rawValue":"\"invalid\""`} {
+		if !strings.Contains(text, want) {
+			t.Errorf("result text = %q, want it to contain %q", text, want)
+		}
 	}
 }
 
@@ -489,7 +494,6 @@ func TestNewServer_CallQuerySearchAnalyticsTool_WithSearchType_ViaRealSession(t 
 		t.Errorf(`upstream request body "type" = %v, want %q`, gotBody["type"], "video")
 	}
 }
-
 
 // TestListSites_InputSchema validates the production listSitesInputSchema variable to
 // ensure it is compatible with strict MCP clients (e.g. Copilot CLI) that require

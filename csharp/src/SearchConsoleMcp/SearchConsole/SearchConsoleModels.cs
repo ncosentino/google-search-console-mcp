@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace SearchConsoleMcp.SearchConsole;
@@ -37,8 +38,12 @@ internal sealed record SitemapEntry(
     bool IsSitemapsIndex,
     string Type,
     DateTimeOffset? LastDownloaded,
-    long Warnings,
-    long Errors);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] long? Warnings,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] long? Errors,
+    IReadOnlyList<SitemapFieldDiagnostic>? Diagnostics = null);
+
+/// <summary>A malformed optional sitemap counter that did not invalidate the response.</summary>
+internal sealed record SitemapFieldDiagnostic(string Field, string? RawValue, string Warning);
 
 /// <summary>The result of listing sitemaps for a property.</summary>
 internal sealed record SitemapListResponse(
@@ -84,10 +89,10 @@ internal sealed class ApiSitemapEntry
     public string? LastDownloaded { get; set; }
 
     [JsonPropertyName("warnings")]
-    public long Warnings { get; set; }
+    public JsonElement Warnings { get; set; }
 
     [JsonPropertyName("errors")]
-    public long Errors { get; set; }
+    public JsonElement Errors { get; set; }
 }
 
 internal sealed class ApiSitemapListResponse
@@ -175,6 +180,7 @@ internal sealed class ServiceAccountJson
 [JsonSerializable(typeof(SearchAnalyticsResponse))]
 [JsonSerializable(typeof(SiteListResponse))]
 [JsonSerializable(typeof(SitemapListResponse))]
+[JsonSerializable(typeof(SitemapFieldDiagnostic))]
 [JsonSerializable(typeof(ErrorResult))]
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,

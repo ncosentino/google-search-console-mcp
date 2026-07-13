@@ -113,17 +113,54 @@ internal sealed class SearchConsoleClient
             .ReadFromJsonAsync(GscJsonContext.Default.ApiSitemapListResponse, cancellationToken)
             .ConfigureAwait(false);
 
-        var sitemaps = (raw?.Sitemap ?? []).Select(s => new SitemapEntry(
-            s.Path,
-            DateTimeOffset.TryParse(s.LastSubmitted, out var ls) ? ls : null,
-            s.IsPending,
-            s.IsSitemapsIndex,
-            s.Type,
-            DateTimeOffset.TryParse(s.LastDownloaded, out var ld) ? ld : null,
-            s.Warnings,
-            s.Errors)).ToList();
+        var sitemaps = (raw?.Sitemap ?? []).Select(s =>
+        {
+            var (warnings, warningsDiagnostic) = ParseSitemapCount("warnings", s.Warnings);
+            var (errors, errorsDiagnostic) = ParseSitemapCount("errors", s.Errors);
+            var diagnostics = new[] { warningsDiagnostic, errorsDiagnostic }
+                .Where(diagnostic => diagnostic is not null)
+                .Cast<SitemapFieldDiagnostic>()
+                .ToList();
+
+            return new SitemapEntry(
+                s.Path,
+                DateTimeOffset.TryParse(s.LastSubmitted, out var ls) ? ls : null,
+                s.IsPending,
+                s.IsSitemapsIndex,
+                s.Type,
+                DateTimeOffset.TryParse(s.LastDownloaded, out var ld) ? ld : null,
+                warnings,
+                errors,
+                diagnostics.Count == 0 ? null : diagnostics);
+        }).ToList();
 
         return new SitemapListResponse(siteUrl, sitemaps, DateTimeOffset.UtcNow);
+    }
+
+    private static (long? Value, SitemapFieldDiagnostic? Diagnostic) ParseSitemapCount(
+        string field,
+        JsonElement element)
+    {
+        if (element.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            return (null, null);
+        }
+
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out var number))
+        {
+            return (number, null);
+        }
+
+        if (element.ValueKind == JsonValueKind.String
+            && long.TryParse(element.GetString()?.Trim(), out var numericString))
+        {
+            return (numericString, null);
+        }
+
+        return (null, new SitemapFieldDiagnostic(
+            field,
+            element.GetRawText(),
+            "value is not an integer or numeric string"));
     }
 
     /// <summary>Queries search analytics data for the given property.</summary>
