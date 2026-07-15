@@ -169,7 +169,14 @@ func TestListSites_APIError_ReturnsErrorContent(t *testing.T) {
 func TestListSitemaps_Success_ReturnsMarshaledResult(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"sitemap":[{"path":"https://devleader.ca/sitemap.xml","isPending":false,"isSitemapsIndex":false,"type":"sitemap","warnings":0,"errors":0}]}`))
+		_, _ = w.Write([]byte(`{
+			"sitemap": [
+				{"path":"https://devleader.ca/string.xml","isPending":false,"isSitemapsIndex":false,"type":"sitemap","warnings":"2","errors":"0"},
+				{"path":"https://devleader.ca/null.xml","isPending":false,"isSitemapsIndex":false,"type":"sitemap","warnings":null,"errors":null},
+				{"path":"https://devleader.ca/missing.xml","isPending":false,"isSitemapsIndex":false,"type":"sitemap"},
+				{"path":"https://devleader.ca/numeric.xml","isPending":false,"isSitemapsIndex":false,"type":"sitemap","warnings":0,"errors":1}
+			]
+		}`))
 	}))
 	defer srv.Close()
 	defer searchconsole.SetTestAPIBaseURL(srv.URL)()
@@ -183,8 +190,55 @@ func TestListSitemaps_Success_ReturnsMarshaledResult(t *testing.T) {
 		t.Errorf("result.IsError = true, want false: %+v", result.Content)
 	}
 	text := result.Content[0].(*mcp.TextContent).Text
-	if !strings.Contains(text, "sitemap.xml") {
-		t.Errorf("result text = %q, want it to contain %q", text, "sitemap.xml")
+	var payload searchconsole.SitemapList
+	if err := json.Unmarshal([]byte(text), &payload); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if len(payload.Sitemaps) != 4 {
+		t.Fatalf("sitemap count = %d, want 4", len(payload.Sitemaps))
+	}
+	if payload.Sitemaps[0].Warnings == nil || *payload.Sitemaps[0].Warnings != 2 {
+		t.Errorf("string warnings = %v, want 2", payload.Sitemaps[0].Warnings)
+	}
+	if payload.Sitemaps[0].Errors == nil || *payload.Sitemaps[0].Errors != 0 {
+		t.Errorf("string errors = %v, want 0", payload.Sitemaps[0].Errors)
+	}
+	if payload.Sitemaps[1].Warnings != nil || payload.Sitemaps[1].Errors != nil {
+		t.Errorf("null counters = (%v, %v), want nil values", payload.Sitemaps[1].Warnings, payload.Sitemaps[1].Errors)
+	}
+	if payload.Sitemaps[2].Warnings != nil || payload.Sitemaps[2].Errors != nil {
+		t.Errorf("missing counters = (%v, %v), want nil values", payload.Sitemaps[2].Warnings, payload.Sitemaps[2].Errors)
+	}
+	if payload.Sitemaps[3].Warnings == nil || *payload.Sitemaps[3].Warnings != 0 {
+		t.Errorf("numeric warnings = %v, want 0", payload.Sitemaps[3].Warnings)
+	}
+	if payload.Sitemaps[3].Errors == nil || *payload.Sitemaps[3].Errors != 1 {
+		t.Errorf("numeric errors = %v, want 1", payload.Sitemaps[3].Errors)
+	}
+	if !strings.Contains(text, `"warnings":null`) || !strings.Contains(text, `"errors":null`) {
+		t.Errorf("result text = %q, want explicit null counters", text)
+	}
+}
+
+func TestListSitemaps_InvalidCounter_ReturnsErrorContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"sitemap":[{"path":"https://devleader.ca/sitemap.xml","warnings":"invalid","errors":"0"}]}`))
+	}))
+	defer srv.Close()
+	defer searchconsole.SetTestAPIBaseURL(srv.URL)()
+
+	client := searchconsole.NewTestClient(srv.Client())
+	result, _, err := listSitemaps(context.Background(), client, "devleader.ca")
+	if err != nil {
+		t.Fatalf("listSitemaps returned a Go error instead of error content: %v", err)
+	}
+	text := result.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(text, "parsing sitemaps response") {
+		t.Errorf("result text = %q, want parsing error context", text)
+	}
+	if !strings.Contains(text, "parsing integer value") {
+		t.Errorf("result text = %q, want invalid counter context", text)
 	}
 }
 
@@ -489,7 +543,6 @@ func TestNewServer_CallQuerySearchAnalyticsTool_WithSearchType_ViaRealSession(t 
 		t.Errorf(`upstream request body "type" = %v, want %q`, gotBody["type"], "video")
 	}
 }
-
 
 // TestListSites_InputSchema validates the production listSitesInputSchema variable to
 // ensure it is compatible with strict MCP clients (e.g. Copilot CLI) that require

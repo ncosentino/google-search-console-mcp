@@ -280,8 +280,8 @@ func (c *Client) listSitemapsWithURL(ctx context.Context, siteURL string) (*Site
 			IsPending:       s.IsPending,
 			IsSitemapsIndex: s.IsSitemapsIndex,
 			Type:            s.Type,
-			Warnings:        s.Warnings,
-			Errors:          s.Errors,
+			Warnings:        s.Warnings.Value,
+			Errors:          s.Errors.Value,
 		}
 		if t, err := time.Parse(time.RFC3339, s.LastSubmitted); err == nil {
 			sm.LastSubmitted = t
