@@ -19,12 +19,14 @@ internal sealed class GscApiException : Exception
         => StatusCode = statusCode;
 }
 
-/// <summary>Client for the Google Search Console API v3.</summary>
+/// <summary>Client for Google Search Console APIs.</summary>
 internal sealed class SearchConsoleClient
 {
     private const string DefaultBaseUrl = "https://www.googleapis.com/webmasters/v3";
+    private const string DefaultUrlInspectionBaseUrl = "https://searchconsole.googleapis.com/v1";
     private const string GscScope = "https://www.googleapis.com/auth/webmasters.readonly";
     private const string DefaultSearchType = "web";
+    private const string DefaultLanguageCode = "en-US";
 
     private static readonly HashSet<string> ValidSearchTypes = new(StringComparer.Ordinal)
     {
@@ -32,6 +34,7 @@ internal sealed class SearchConsoleClient
     };
 
     private readonly string _baseUrl;
+    private readonly string _urlInspectionBaseUrl;
     private readonly HttpClient _httpClient;
     private readonly ITokenProvider _tokenProvider;
 
@@ -52,12 +55,18 @@ internal sealed class SearchConsoleClient
         return new SearchConsoleClient(httpClient, auth);
     }
 
-    /// <summary>Creates a client with a custom token provider and optional base URL override (for testing).</summary>
-    internal SearchConsoleClient(HttpClient httpClient, ITokenProvider tokenProvider, string? baseUrlOverride = null)
+    /// <summary>Creates a client with custom authentication and optional API URL overrides.</summary>
+    internal SearchConsoleClient(
+        HttpClient httpClient,
+        ITokenProvider tokenProvider,
+        string? baseUrlOverride = null,
+        string? urlInspectionBaseUrlOverride = null)
     {
         _httpClient = httpClient;
         _tokenProvider = tokenProvider;
         _baseUrl = baseUrlOverride ?? DefaultBaseUrl;
+        _urlInspectionBaseUrl =
+            urlInspectionBaseUrlOverride ?? baseUrlOverride ?? DefaultUrlInspectionBaseUrl;
     }
 
     /// <summary>Lists all Search Console properties accessible to the service account.</summary>
@@ -85,16 +94,10 @@ internal sealed class SearchConsoleClient
         string siteUrl,
         CancellationToken cancellationToken = default)
     {
-        var resolved = SiteUrlResolver.Normalize(siteUrl);
-        try
-        {
-            return await ListSitemapsInternalAsync(resolved, cancellationToken).ConfigureAwait(false);
-        }
-        catch (GscApiException ex) when (ex.StatusCode == 403)
-        {
-            var resolvedUrl = await ResolveSiteUrlAsync(siteUrl, cancellationToken).ConfigureAwait(false);
-            return await ListSitemapsInternalAsync(resolvedUrl, cancellationToken).ConfigureAwait(false);
-        }
+        return await ExecuteWithResolvedSiteUrlAsync(
+            siteUrl,
+            ListSitemapsInternalAsync,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<SitemapListResponse> ListSitemapsInternalAsync(
@@ -142,18 +145,11 @@ internal sealed class SearchConsoleClient
                 $"invalid search_type '{searchType}': must be one of web, image, video, news, discover, googleNews");
         }
 
-        var resolved = SiteUrlResolver.Normalize(siteUrl);
-        try
-        {
-            return await QuerySearchAnalyticsInternalAsync(
-                resolved, startDate, endDate, dimensions, rowLimit, searchType, cancellationToken).ConfigureAwait(false);
-        }
-        catch (GscApiException ex) when (ex.StatusCode == 403)
-        {
-            var resolvedUrl = await ResolveSiteUrlAsync(siteUrl, cancellationToken).ConfigureAwait(false);
-            return await QuerySearchAnalyticsInternalAsync(
-                resolvedUrl, startDate, endDate, dimensions, rowLimit, searchType, cancellationToken).ConfigureAwait(false);
-        }
+        return await ExecuteWithResolvedSiteUrlAsync(
+            siteUrl,
+            (resolved, token) => QuerySearchAnalyticsInternalAsync(
+                resolved, startDate, endDate, dimensions, rowLimit, searchType, token),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<SearchAnalyticsResponse> QuerySearchAnalyticsInternalAsync(
@@ -199,6 +195,85 @@ internal sealed class SearchConsoleClient
 
         return new SearchAnalyticsResponse(
             siteUrl, startDate, endDate, dimensions, effectiveSearchType, rows.Count, rows, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>Inspects Google's indexed version of one URL under a Search Console property.</summary>
+    internal async Task<UrlInspectionResponse> InspectUrlAsync(
+        string siteUrl,
+        string inspectionUrl,
+        string? languageCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        inspectionUrl = inspectionUrl.Trim();
+        if (inspectionUrl.Length == 0)
+            throw new ArgumentException("inspection_url is required", nameof(inspectionUrl));
+
+        var effectiveLanguageCode = string.IsNullOrWhiteSpace(languageCode)
+            ? DefaultLanguageCode
+            : languageCode.Trim();
+
+        return await ExecuteWithResolvedSiteUrlAsync(
+            siteUrl,
+            (resolved, token) => InspectUrlInternalAsync(
+                resolved, inspectionUrl, effectiveLanguageCode, token),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<UrlInspectionResponse> InspectUrlInternalAsync(
+        string siteUrl,
+        string inspectionUrl,
+        string languageCode,
+        CancellationToken cancellationToken)
+    {
+        var body = new UrlInspectionRequest
+        {
+            SiteUrl = siteUrl,
+            InspectionUrl = inspectionUrl,
+            LanguageCode = languageCode
+        };
+        var json = JsonSerializer.Serialize(body, GscJsonContext.Default.UrlInspectionRequest);
+        var request = await BuildRequestAsync(
+            HttpMethod.Post,
+            $"{_urlInspectionBaseUrl}/urlInspection/index:inspect",
+            json,
+            cancellationToken).ConfigureAwait(false);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var raw = await response.Content
+            .ReadFromJsonAsync(GscJsonContext.Default.ApiUrlInspectionResponse, cancellationToken)
+            .ConfigureAwait(false);
+        if (raw is null ||
+            raw.InspectionResult.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            throw new InvalidOperationException(
+                "Search Console URL Inspection response did not include inspectionResult.");
+        }
+
+        return new UrlInspectionResponse(
+            siteUrl,
+            inspectionUrl,
+            languageCode,
+            raw.InspectionResult.Clone(),
+            DateTimeOffset.UtcNow);
+    }
+
+    private async Task<T> ExecuteWithResolvedSiteUrlAsync<T>(
+        string input,
+        Func<string, CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        var resolved = SiteUrlResolver.Normalize(input);
+        try
+        {
+            return await operation(resolved, cancellationToken).ConfigureAwait(false);
+        }
+        catch (GscApiException ex) when (ex.StatusCode == 403)
+        {
+            var resolvedUrl = await ResolveSiteUrlAsync(input, cancellationToken).ConfigureAwait(false);
+            return await operation(resolvedUrl, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task<string> ResolveSiteUrlAsync(string input, CancellationToken cancellationToken)

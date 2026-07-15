@@ -51,9 +51,10 @@ public sealed class StdioTransportTests
 
         var tools = await client.ListToolsAsync();
 
-        Assert.Equal(3, tools.Count);
+        Assert.Equal(4, tools.Count);
         Assert.Contains(tools, t => t.Name == "query_search_analytics");
         Assert.Contains(tools, t => t.Name == "list_sites");
         Assert.Contains(tools, t => t.Name == "list_sitemaps");
+        Assert.Contains(tools, t => t.Name == "inspect_url");
     }
 }

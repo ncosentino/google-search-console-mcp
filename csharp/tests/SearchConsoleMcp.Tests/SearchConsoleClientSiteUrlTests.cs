@@ -104,4 +104,62 @@ public sealed class SearchConsoleClientSiteUrlTests
         Assert.NotNull(result);
         Assert.Equal(3, handler.CallCount);
     }
+
+    [Fact]
+    public async Task InspectUrl_On403_RetriesWithResolvedUrl()
+    {
+        var handler = new FakeMessageHandler(async (req, cancellationToken) =>
+        {
+            if (req.Method == HttpMethod.Get &&
+                req.RequestUri!.AbsolutePath.TrimEnd('/').EndsWith("/sites", StringComparison.Ordinal))
+            {
+                return FakeResponses.OkJson(new
+                {
+                    siteEntry = new[]
+                    {
+                        new { siteUrl = "sc-domain:devleader.ca", permissionLevel = "siteFullUser" }
+                    }
+                });
+            }
+
+            if (req.Method == HttpMethod.Post &&
+                req.RequestUri!.AbsolutePath.EndsWith(
+                    "/urlInspection/index:inspect",
+                    StringComparison.Ordinal))
+            {
+                var json = await req.Content!.ReadAsStringAsync(cancellationToken);
+                using var document = JsonDocument.Parse(json);
+                var siteUrl = document.RootElement.GetProperty("siteUrl").GetString();
+
+                if (siteUrl == "https://www.devleader.ca/")
+                    return FakeResponses.Forbidden();
+
+                if (siteUrl == "sc-domain:devleader.ca")
+                {
+                    return FakeResponses.OkJson(new
+                    {
+                        inspectionResult = new
+                        {
+                            indexStatusResult = new { verdict = "PASS" }
+                        }
+                    });
+                }
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var client = new SearchConsoleClient(
+            new HttpClient(handler),
+            new FakeTokenProvider(),
+            baseUrlOverride: "http://localhost/gsc");
+
+        var result = await client.InspectUrlAsync(
+            "https://www.devleader.ca/",
+            "https://www.devleader.ca/example");
+
+        Assert.NotNull(result);
+        Assert.Equal("sc-domain:devleader.ca", result.SiteUrl);
+        Assert.Equal(3, handler.CallCount);
+    }
 }

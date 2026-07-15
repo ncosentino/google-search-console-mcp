@@ -14,8 +14,33 @@ import (
 	"github.com/ncosentino/google-search-console-mcp/go/internal/searchconsole"
 )
 
+const completeURLInspectionResponse = `{
+	"inspectionResult": {
+		"inspectionResultLink": "https://search.google.com/search-console/inspect/example",
+		"indexStatusResult": {
+			"verdict": "PASS",
+			"coverageState": "Submitted and indexed",
+			"robotsTxtState": "ALLOWED",
+			"indexingState": "INDEXING_ALLOWED",
+			"pageFetchState": "SUCCESSFUL",
+			"googleCanonical": "https://www.devleader.ca/example",
+			"userCanonical": "https://www.devleader.ca/example"
+		},
+		"mobileUsabilityResult": {"verdict": "PASS"},
+		"richResultsResult": {"verdict": "PASS", "detectedItems": []},
+		"ampResult": {"verdict": "PASS"}
+	}
+}`
+
+const minimalURLInspectionResponse = `{
+	"inspectionResult": {
+		"inspectionResultLink": "https://search.google.com/search-console/inspect/example",
+		"indexStatusResult": {"verdict": "PASS"}
+	}
+}`
+
 // TestNewServer_RegistersTools verifies that newServer builds a server with all
-// three tools registered and listable via a real client session, catching invalid
+// tools registered and listable via a real client session, catching invalid
 // struct tags or schema-generation failures at test time rather than at runtime.
 func TestNewServer_RegistersTools(t *testing.T) {
 	t.Parallel()
@@ -48,7 +73,7 @@ func TestNewServer_RegistersTools(t *testing.T) {
 	for _, tool := range result.Tools {
 		names = append(names, tool.Name)
 	}
-	for _, want := range []string{"query_search_analytics", "list_sites", "list_sitemaps"} {
+	for _, want := range []string{"query_search_analytics", "list_sites", "list_sitemaps", "inspect_url"} {
 		found := false
 		for _, n := range names {
 			if n == want {
@@ -263,6 +288,168 @@ func TestListSitemaps_APIError_ReturnsErrorContent(t *testing.T) {
 	}
 }
 
+func TestInspectURL_Success_ReturnsCompleteResult(t *testing.T) {
+	var requestPath string
+	var requestBody struct {
+		SiteURL       string `json:"siteUrl"`
+		InspectionURL string `json:"inspectionUrl"`
+		LanguageCode  string `json:"languageCode"`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestPath = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(completeURLInspectionResponse))
+	}))
+	defer srv.Close()
+	defer searchconsole.SetTestAPIBaseURL(srv.URL)()
+
+	client := searchconsole.NewTestClient(srv.Client())
+	result, _, err := inspectURL(context.Background(), client, inspectURLInput{
+		SiteURL:       "devleader.ca",
+		InspectionURL: "https://www.devleader.ca/example",
+	})
+	if err != nil {
+		t.Fatalf("inspectURL: %v", err)
+	}
+	if result.IsError {
+		t.Errorf("result.IsError = true, want false: %+v", result.Content)
+	}
+
+	if requestPath != "/urlInspection/index:inspect" {
+		t.Errorf("request path = %q, want URL Inspection endpoint", requestPath)
+	}
+	if requestBody.SiteURL != "sc-domain:devleader.ca" {
+		t.Errorf("request siteUrl = %q, want sc-domain:devleader.ca", requestBody.SiteURL)
+	}
+	if requestBody.InspectionURL != "https://www.devleader.ca/example" {
+		t.Errorf("request inspectionUrl = %q", requestBody.InspectionURL)
+	}
+	if requestBody.LanguageCode != "en-US" {
+		t.Errorf("request languageCode = %q, want en-US", requestBody.LanguageCode)
+	}
+
+	text := result.Content[0].(*mcp.TextContent).Text
+	var payload searchconsole.URLInspectionResponse
+	if err := json.Unmarshal([]byte(text), &payload); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if payload.SiteURL != "sc-domain:devleader.ca" {
+		t.Errorf("result siteUrl = %q, want sc-domain:devleader.ca", payload.SiteURL)
+	}
+	if payload.LanguageCode != "en-US" {
+		t.Errorf("result languageCode = %q, want en-US", payload.LanguageCode)
+	}
+
+	var inspectionResult map[string]json.RawMessage
+	if err := json.Unmarshal(payload.InspectionResult, &inspectionResult); err != nil {
+		t.Fatalf("unmarshal inspectionResult: %v", err)
+	}
+	for _, field := range []string{
+		"inspectionResultLink",
+		"indexStatusResult",
+		"mobileUsabilityResult",
+		"richResultsResult",
+		"ampResult",
+	} {
+		if _, ok := inspectionResult[field]; !ok {
+			t.Errorf("inspectionResult missing %q", field)
+		}
+	}
+}
+
+func TestInspectURL_AbsentOptionalSections_ReturnsIndexResult(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(minimalURLInspectionResponse))
+	}))
+	defer srv.Close()
+	defer searchconsole.SetTestAPIBaseURL(srv.URL)()
+
+	client := searchconsole.NewTestClient(srv.Client())
+	result, _, err := inspectURL(context.Background(), client, inspectURLInput{
+		SiteURL:       "devleader.ca",
+		InspectionURL: "https://www.devleader.ca/example",
+		LanguageCode:  "de-CH",
+	})
+	if err != nil {
+		t.Fatalf("inspectURL: %v", err)
+	}
+
+	text := result.Content[0].(*mcp.TextContent).Text
+	var payload searchconsole.URLInspectionResponse
+	if err := json.Unmarshal([]byte(text), &payload); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if payload.LanguageCode != "de-CH" {
+		t.Errorf("result languageCode = %q, want de-CH", payload.LanguageCode)
+	}
+
+	var inspectionResult map[string]json.RawMessage
+	if err := json.Unmarshal(payload.InspectionResult, &inspectionResult); err != nil {
+		t.Fatalf("unmarshal inspectionResult: %v", err)
+	}
+	if _, ok := inspectionResult["indexStatusResult"]; !ok {
+		t.Error("inspectionResult missing indexStatusResult")
+	}
+	for _, field := range []string{"mobileUsabilityResult", "richResultsResult", "ampResult"} {
+		if _, ok := inspectionResult[field]; ok {
+			t.Errorf("inspectionResult unexpectedly contains %q", field)
+		}
+	}
+}
+
+func TestInspectURL_APIError_ReturnsErrorContent(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		body       string
+		marker     string
+	}{
+		{
+			name:       "invalid property URL combination",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":"URL is not under the property"}`,
+			marker:     "URL is not under the property",
+		},
+		{
+			name:       "quota exceeded",
+			statusCode: http.StatusTooManyRequests,
+			body:       `{"error":"quota exceeded"}`,
+			marker:     "quota exceeded",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer srv.Close()
+			defer searchconsole.SetTestAPIBaseURL(srv.URL)()
+
+			client := searchconsole.NewTestClient(srv.Client())
+			result, _, err := inspectURL(context.Background(), client, inspectURLInput{
+				SiteURL:       "devleader.ca",
+				InspectionURL: "https://other.example/page",
+			})
+			if err != nil {
+				t.Fatalf("inspectURL returned a Go error instead of error content: %v", err)
+			}
+			text := result.Content[0].(*mcp.TextContent).Text
+			if !strings.Contains(text, "inspecting URL") {
+				t.Errorf("result text = %q, want operation context", text)
+			}
+			if !strings.Contains(text, tt.marker) {
+				t.Errorf("result text = %q, want API error marker %q", text, tt.marker)
+			}
+		})
+	}
+}
+
 // TestNewServer_CallQuerySearchAnalyticsTool_ViaRealSession confirms the
 // query_search_analytics tool, as actually registered by newServer (not just
 // the underlying Go function called directly), works end-to-end through a
@@ -394,6 +581,48 @@ func TestNewServer_CallListSitemapsTool_ViaRealSession(t *testing.T) {
 	}
 }
 
+func TestNewServer_CallInspectURLTool_ViaRealSession(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(minimalURLInspectionResponse))
+	}))
+	defer srv.Close()
+	defer searchconsole.SetTestAPIBaseURL(srv.URL)()
+
+	client := searchconsole.NewTestClient(srv.Client())
+	mcpServer := newServer(client)
+
+	ctx := context.Background()
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+
+	serverSession, err := mcpServer.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server.Connect: %v", err)
+	}
+	defer serverSession.Close()
+
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "test"}, nil)
+	clientSession, err := mcpClient.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect: %v", err)
+	}
+	defer clientSession.Close()
+
+	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+		Name: "inspect_url",
+		Arguments: map[string]any{
+			"site_url":       "devleader.ca",
+			"inspection_url": "https://www.devleader.ca/example",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if result.IsError {
+		t.Errorf("CallTool returned an error result: %+v", result.Content)
+	}
+}
+
 // TestQuerySearchAnalyticsInput_RowLimit_IsNotRequired confirms row_limit is
 // absent from the schema's required list, matching its description ("Defaults
 // to 1000 if omitted") and the defaulting behavior in
@@ -413,6 +642,25 @@ func TestQuerySearchAnalyticsInput_RowLimit_IsNotRequired(t *testing.T) {
 
 	if slices.Contains(schema.Required, "row_limit") {
 		t.Errorf("row_limit must not be in schema.Required (got %v)", schema.Required)
+	}
+}
+
+func TestInspectURLInput_LanguageCode_IsOptional(t *testing.T) {
+	t.Parallel()
+
+	schema, err := jsonschema.For[inspectURLInput](nil)
+	if err != nil {
+		t.Fatalf("schema inference failed: %v", err)
+	}
+
+	if !slices.Contains(schema.Required, "site_url") {
+		t.Errorf("site_url must be required (got %v)", schema.Required)
+	}
+	if !slices.Contains(schema.Required, "inspection_url") {
+		t.Errorf("inspection_url must be required (got %v)", schema.Required)
+	}
+	if slices.Contains(schema.Required, "language_code") {
+		t.Errorf("language_code must be optional (got %v)", schema.Required)
 	}
 }
 

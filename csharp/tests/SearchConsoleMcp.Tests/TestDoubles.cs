@@ -15,10 +15,14 @@ internal sealed class FakeTokenProvider : SearchConsoleMcp.SearchConsole.ITokenP
 /// function instead of making a real network call, and counts how many requests it received.</summary>
 internal sealed class FakeMessageHandler : HttpMessageHandler
 {
-    private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
+    private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _handler;
     public int CallCount { get; private set; }
 
     internal FakeMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
+        => _handler = (request, _) => Task.FromResult(handler(request));
+
+    internal FakeMessageHandler(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler)
         => _handler = handler;
 
     protected override Task<HttpResponseMessage> SendAsync(
@@ -26,7 +30,7 @@ internal sealed class FakeMessageHandler : HttpMessageHandler
         CancellationToken cancellationToken)
     {
         CallCount++;
-        return Task.FromResult(_handler(request));
+        return _handler(request, cancellationToken);
     }
 }
 

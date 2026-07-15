@@ -62,6 +62,16 @@ type SitemapList struct {
 	QueriedAt time.Time `json:"queriedAt"`
 }
 
+// URLInspectionResponse is the indexed status and available per-URL
+// enhancement information returned by Google's URL Inspection API.
+type URLInspectionResponse struct {
+	SiteURL          string          `json:"siteUrl"`
+	InspectionURL    string          `json:"inspectionUrl"`
+	LanguageCode     string          `json:"languageCode"`
+	InspectionResult json.RawMessage `json:"inspectionResult"`
+	QueriedAt        time.Time       `json:"queriedAt"`
+}
+
 // --- Search Console API raw response types ---
 
 type apiSiteEntry struct {
@@ -133,4 +143,14 @@ type apiSearchAnalyticsRow struct {
 
 type apiSearchAnalyticsResponse struct {
 	Rows []apiSearchAnalyticsRow `json:"rows"`
+}
+
+type apiURLInspectionRequest struct {
+	SiteURL       string `json:"siteUrl"`
+	InspectionURL string `json:"inspectionUrl"`
+	LanguageCode  string `json:"languageCode"`
+}
+
+type apiURLInspectionResponse struct {
+	InspectionResult json.RawMessage `json:"inspectionResult"`
 }

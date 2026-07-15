@@ -131,3 +131,70 @@ func TestListSitemaps_On403_RetriesWithResolvedURL(t *testing.T) {
 		t.Errorf("expected 3 HTTP calls, got %d", callCount)
 	}
 }
+
+func TestInspectURL_On403_RetriesWithResolvedURL(t *testing.T) {
+	callCount := 0
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+
+		if r.Method == http.MethodGet && r.URL.Path == "/sites" {
+			resp := apiSiteListResponse{
+				SiteEntry: []apiSiteEntry{
+					{SiteURL: "sc-domain:devleader.ca", PermissionLevel: "siteFullUser"},
+				},
+			}
+			b, _ := json.Marshal(resp)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(b)
+			return
+		}
+
+		if r.Method != http.MethodPost || r.URL.Path != "/urlInspection/index:inspect" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		var request apiURLInspectionRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		switch request.SiteURL {
+		case "https://www.devleader.ca/":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"code":403}}`))
+		case "sc-domain:devleader.ca":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"inspectionResult":{"indexStatusResult":{"verdict":"PASS"}}}`))
+		default:
+			t.Errorf("unexpected siteUrl: %s", request.SiteURL)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	defer SetTestAPIBaseURL(srv.URL)()
+
+	client := NewTestClient(srv.Client())
+	result, err := client.InspectURL(
+		context.Background(),
+		"https://www.devleader.ca/",
+		"https://www.devleader.ca/example",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result after retry")
+	}
+	if result.SiteURL != "sc-domain:devleader.ca" {
+		t.Errorf("result siteUrl = %q, want sc-domain:devleader.ca", result.SiteURL)
+	}
+	if callCount != 3 {
+		t.Errorf("expected 3 HTTP calls, got %d", callCount)
+	}
+}

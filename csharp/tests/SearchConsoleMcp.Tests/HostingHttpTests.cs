@@ -20,7 +20,7 @@ public sealed class HostingHttpTests
     /// <summary>
     /// Fake handler that satisfies the OAuth2 token exchange with a canned success
     /// response, then returns a configurable body for the Search Console API call
-    /// itself. Used to exercise query_search_analytics/list_sites/list_sitemaps
+    /// itself. Used to exercise all Search Console tools
     /// end-to-end through a real MCP session without making any real network call.
     /// </summary>
     private sealed class FakeSearchConsoleHandler(string apiResponseBody) : HttpMessageHandler
@@ -71,10 +71,11 @@ public sealed class HostingHttpTests
 
             var tools = await client.ListToolsAsync();
 
-            Assert.Equal(3, tools.Count);
+            Assert.Equal(4, tools.Count);
             Assert.Contains(tools, t => t.Name == "query_search_analytics");
             Assert.Contains(tools, t => t.Name == "list_sites");
             Assert.Contains(tools, t => t.Name == "list_sitemaps");
+            Assert.Contains(tools, t => t.Name == "inspect_url");
         }
         finally
         {
@@ -161,6 +162,34 @@ public sealed class HostingHttpTests
             var result = await client.CallToolAsync("list_sites", new Dictionary<string, object?>());
 
             // IsError is nullable: null (unset) on success, true on error.
+            Assert.NotEqual(true, result.IsError);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task BuildHttpHost_CallInspectUrlTool_ViaRealSession_ReturnsSuccessResult()
+    {
+        var handler = new FakeSearchConsoleHandler(
+            """{"inspectionResult":{"indexStatusResult":{"verdict":"PASS"}}}""");
+        await using var app = Hosting.BuildHttpHost([], FakeServiceAccountJson, port: 0, handler);
+        await app.StartAsync();
+        try
+        {
+            await using var client = await McpClient.CreateAsync(new HttpClientTransport(new HttpClientTransportOptions
+            {
+                Endpoint = ConnectableUri(app),
+            }));
+
+            var result = await client.CallToolAsync("inspect_url", new Dictionary<string, object?>
+            {
+                ["site_url"] = "devleader.ca",
+                ["inspection_url"] = "https://www.devleader.ca/example",
+            });
+
             Assert.NotEqual(true, result.IsError);
         }
         finally

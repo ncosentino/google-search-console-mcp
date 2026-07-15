@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace SearchConsoleMcp.SearchConsole;
@@ -44,6 +45,14 @@ internal sealed record SitemapEntry(
 internal sealed record SitemapListResponse(
     string SiteUrl,
     IReadOnlyList<SitemapEntry> Sitemaps,
+    DateTimeOffset QueriedAt);
+
+/// <summary>The indexed status and available per-URL enhancement information for one URL.</summary>
+internal sealed record UrlInspectionResponse(
+    string SiteUrl,
+    string InspectionUrl,
+    string LanguageCode,
+    JsonElement InspectionResult,
     DateTimeOffset QueriedAt);
 
 // --- Raw Google API response models ---
@@ -122,6 +131,12 @@ internal sealed class ApiSearchAnalyticsResponse
     public List<ApiSearchAnalyticsRow>? Rows { get; set; }
 }
 
+internal sealed class ApiUrlInspectionResponse
+{
+    [JsonPropertyName("inspectionResult")]
+    public JsonElement InspectionResult { get; set; }
+}
+
 /// <summary>An error result returned when an API call fails.</summary>
 internal sealed record ErrorResult(string Error);
 
@@ -142,6 +157,19 @@ internal sealed class SearchAnalyticsRequest
 
     [JsonPropertyName("rowLimit")]
     public int RowLimit { get; set; }
+}
+
+/// <summary>Request body for URL Inspection API calls.</summary>
+internal sealed class UrlInspectionRequest
+{
+    [JsonPropertyName("siteUrl")]
+    public string SiteUrl { get; set; } = string.Empty;
+
+    [JsonPropertyName("inspectionUrl")]
+    public string InspectionUrl { get; set; } = string.Empty;
+
+    [JsonPropertyName("languageCode")]
+    public string LanguageCode { get; set; } = string.Empty;
 }
 
 internal sealed class ServiceAccountJson
@@ -170,13 +198,16 @@ internal sealed class ServiceAccountJson
 [JsonSerializable(typeof(ApiSiteListResponse))]
 [JsonSerializable(typeof(ApiSitemapListResponse))]
 [JsonSerializable(typeof(ApiSearchAnalyticsResponse))]
+[JsonSerializable(typeof(ApiUrlInspectionResponse))]
 [JsonSerializable(typeof(SearchAnalyticsRequest))]
+[JsonSerializable(typeof(UrlInspectionRequest))]
 [JsonSerializable(typeof(TokenResponse))]
 [JsonSerializable(typeof(JwtHeader))]
 [JsonSerializable(typeof(JwtPayload))]
 [JsonSerializable(typeof(SearchAnalyticsResponse))]
 [JsonSerializable(typeof(SiteListResponse))]
 [JsonSerializable(typeof(SitemapListResponse))]
+[JsonSerializable(typeof(UrlInspectionResponse))]
 [JsonSerializable(typeof(ErrorResult))]
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,

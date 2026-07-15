@@ -13,11 +13,11 @@ from pathlib import Path
 _PREAMBLE = """\
 # Google Search Console MCP
 
-> Zero-dependency MCP server that exposes Google Search Console search analytics to AI assistants.
+> Zero-dependency MCP server that exposes Google Search Console search analytics and URL inspection to AI assistants.
 
 The Google Search Console MCP server provides native binaries for Go and C#.
-It exposes three MCP tools -- query_search_analytics, list_sites, list_sitemaps --
-directly to AI assistants like Claude, GitHub Copilot, and Cursor.
+It exposes four MCP tools -- query_search_analytics, list_sites, list_sitemaps,
+inspect_url -- directly to AI assistants like Claude, GitHub Copilot, and Cursor.
 Author: Nick Cosentino (https://www.devleader.ca).
 
 """
