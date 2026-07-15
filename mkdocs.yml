@@ -1,6 +1,6 @@
 site_name: Google Search Console MCP
 site_url: https://www.devleader.ca/projects/google-search-console-mcp/
-site_description: Zero-dependency MCP server exposing Google Search Console search analytics to AI assistants. Pre-built native binaries for Linux, macOS, and Windows -- no Node.js, no Python, no runtime required.
+site_description: Zero-dependency MCP server exposing Google Search Console search analytics and URL inspection to AI assistants. Pre-built native binaries for Linux, macOS, and Windows -- no Node.js, no Python, no runtime required.
 repo_url: https://github.com/ncosentino/google-search-console-mcp
 repo_name: ncosentino/google-search-console-mcp
 strict: true
@@ -41,6 +41,7 @@ nav:
     - query_search_analytics: tools/query-search-analytics.md
     - list_sites: tools/list-sites.md
     - list_sitemaps: tools/list-sitemaps.md
+    - inspect_url: tools/inspect-url.md
   - Setup by Tool: setup-by-tool.md
   - Configuration: configuration.md
   - Transports: transports.md

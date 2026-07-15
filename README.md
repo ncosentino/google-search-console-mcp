@@ -1,4 +1,4 @@
-# Search Console MCP Server -- Google Search Analytics for AI Assistants
+# Search Console MCP Server -- Search Analytics and URL Inspection for AI Assistants
 
 [![Latest Release](https://img.shields.io/github/v/release/ncosentino/google-search-console-mcp?style=flat-square)](https://github.com/ncosentino/google-search-console-mcp/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
@@ -9,7 +9,7 @@
 > **Zero-dependency MCP server for Google Search Console.**
 > Pre-built native binaries for Linux, macOS, and Windows. No Node.js. No Python. No .NET runtime. No Go toolchain. Download one binary and configure your AI tool.
 
-Expose real Google organic search data directly to AI assistants like Claude, GitHub Copilot, and Cursor via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Ask your AI which queries are driving traffic to which pages, identify ranking opportunities, and diagnose CTR issues -- all grounded in real Search Console data for your specific property.
+Expose real Google organic search data and per-URL index status directly to AI assistants like Claude, GitHub Copilot, and Cursor via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Ask your AI which queries are driving traffic, identify ranking opportunities, diagnose CTR issues, and inspect Google's indexed view of a known URL.
 
 ---
 
@@ -21,6 +21,7 @@ AI assistants are powerful at analyzing SEO strategy -- but they need real data.
 - **Up to 50,000 rows per query** (vs 1,000 in the UI), unlocking complete keyword datasets
 - **16 months of history** for trend analysis
 - **Dimension flexibility** -- group by query, page, country, device, date, or any combination
+- **Per-URL index inspection** -- retrieve Google's index status and available mobile usability, rich results, and AMP details for a known URL
 
 With this MCP server configured, you can ask your AI: _"Which queries am I ranking position 8-15 for with high impressions but low CTR? What pages could I optimize to break into the top 5?"_ and get a real data-backed answer.
 
@@ -220,6 +221,26 @@ List submitted sitemaps for a property and their status.
 **Example prompt:**
 
 > "Show me all submitted sitemaps for my site and whether any have errors."
+
+### `inspect_url`
+
+Inspect Google's indexed version of one known URL.
+
+**Parameters:**
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `site_url` | string | Yes | -- | The Search Console property |
+| `inspection_url` | string | Yes | -- | Fully qualified URL under the property to inspect |
+| `language_code` | string | No | `en-US` | BCP-47 language code for translated issue messages |
+
+The result includes index status and any available per-URL mobile usability, rich results, and AMP details.
+
+> **Scope boundary:** This tool inspects Google's indexed version of one known URL. It is not a live URL test, an indexing request, or a bulk Page Indexing report. Google applies per-site and per-project URL Inspection API quotas.
+
+**Example prompt:**
+
+> "Inspect https://www.example.com/my-page and explain whether Google considers it indexed."
 
 ### Response Structure
 

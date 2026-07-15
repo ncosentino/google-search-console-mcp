@@ -1,16 +1,17 @@
 ---
-description: Overview of the three MCP tools exposed by the Google Search Console MCP server -- query_search_analytics, list_sites, and list_sitemaps.
+description: Overview of the four MCP tools exposed by the Google Search Console MCP server -- query_search_analytics, list_sites, list_sitemaps, and inspect_url.
 ---
 
 # MCP Tools
 
-Three tools are exposed by this MCP server. All tools work identically across the Go and C# implementations.
+Four tools are exposed by this MCP server. All tools work identically across the Go and C# implementations.
 
 | Tool | Description |
 |------|-------------|
 | [`query_search_analytics`](query-search-analytics.md) | Query clicks, impressions, CTR, and average position |
 | [`list_sites`](list-sites.md) | List all Search Console properties the service account can access |
 | [`list_sitemaps`](list-sitemaps.md) | List submitted sitemaps and their status for a property |
+| [`inspect_url`](inspect-url.md) | Inspect Google's indexed status and available per-URL enhancement details |
 
 ---
 

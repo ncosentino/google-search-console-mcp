@@ -79,6 +79,6 @@ The minimal config pattern (replace paths with your actual locations):
 
 ## Next Steps
 
-- [MCP Tools Reference](tools/index.md) -- full parameter documentation for all three tools
+- [MCP Tools Reference](tools/index.md) -- full parameter documentation for all four tools
 - [Configuration](configuration.md) -- credential resolution order and all configuration options
 - [Setup by Tool](setup-by-tool.md) -- exact config snippets for Claude, Cursor, VS Code, Visual Studio

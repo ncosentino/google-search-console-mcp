@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using SearchConsoleMcp.SearchConsole;
 using SearchConsoleMcp.Tools;
@@ -6,9 +7,9 @@ using Xunit;
 namespace SearchConsoleMcp.Tests;
 
 /// <summary>
-/// Characterization tests for SearchConsoleTool's three MCP tool methods, written ahead
+/// Characterization tests for SearchConsoleTool's MCP tool methods, written ahead
 /// of the ModelContextProtocol SDK dependency modernization (issue #6). Before these
-/// tests, all three methods were at 0% coverage -- nothing exercised the JSON
+/// tests, the original methods were at 0% coverage -- nothing exercised the JSON
 /// serialization or the try/catch-to-ErrorResult conversion that wraps every call.
 /// </summary>
 public sealed class SearchConsoleToolTests
@@ -144,5 +145,130 @@ public sealed class SearchConsoleToolTests
         var result = await tool.ListSitemaps("devleader.ca");
 
         Assert.Contains("GscApiException", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InspectUrl_Success_ReturnsCompleteResultAndDefaultLanguage()
+    {
+        Uri? requestedUri = null;
+        string? requestJson = null;
+        var handler = new FakeMessageHandler(async (request, cancellationToken) =>
+        {
+            requestedUri = request.RequestUri;
+            requestJson = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return FakeResponses.OkJson(new
+            {
+                inspectionResult = new
+                {
+                    inspectionResultLink = "https://search.google.com/search-console/inspect/example",
+                    indexStatusResult = new
+                    {
+                        verdict = "PASS",
+                        coverageState = "Submitted and indexed",
+                        robotsTxtState = "ALLOWED",
+                        indexingState = "INDEXING_ALLOWED",
+                        pageFetchState = "SUCCESSFUL"
+                    },
+                    mobileUsabilityResult = new { verdict = "PASS" },
+                    richResultsResult = new { verdict = "PASS", detectedItems = Array.Empty<object>() },
+                    ampResult = new { verdict = "PASS" }
+                }
+            });
+        });
+        var client = new SearchConsoleClient(
+            new HttpClient(handler),
+            new FakeTokenProvider(),
+            baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.InspectUrl(
+            "devleader.ca",
+            "https://www.devleader.ca/example");
+
+        Assert.NotNull(requestedUri);
+        Assert.EndsWith("/urlInspection/index:inspect", requestedUri.AbsolutePath, StringComparison.Ordinal);
+        Assert.NotNull(requestJson);
+        using (var requestDocument = JsonDocument.Parse(requestJson))
+        {
+            Assert.Equal(
+                "sc-domain:devleader.ca",
+                requestDocument.RootElement.GetProperty("siteUrl").GetString());
+            Assert.Equal(
+                "https://www.devleader.ca/example",
+                requestDocument.RootElement.GetProperty("inspectionUrl").GetString());
+            Assert.Equal(
+                "en-US",
+                requestDocument.RootElement.GetProperty("languageCode").GetString());
+        }
+
+        using var resultDocument = JsonDocument.Parse(result);
+        Assert.Equal("en-US", resultDocument.RootElement.GetProperty("languageCode").GetString());
+        var inspectionResult = resultDocument.RootElement.GetProperty("inspectionResult");
+        Assert.True(inspectionResult.TryGetProperty("inspectionResultLink", out _));
+        Assert.True(inspectionResult.TryGetProperty("indexStatusResult", out _));
+        Assert.True(inspectionResult.TryGetProperty("mobileUsabilityResult", out _));
+        Assert.True(inspectionResult.TryGetProperty("richResultsResult", out _));
+        Assert.True(inspectionResult.TryGetProperty("ampResult", out _));
+    }
+
+    [Fact]
+    public async Task InspectUrl_AbsentOptionalSections_ReturnsIndexResult()
+    {
+        var handler = new FakeMessageHandler(_ => FakeResponses.OkJson(new
+        {
+            inspectionResult = new
+            {
+                inspectionResultLink = "https://search.google.com/search-console/inspect/example",
+                indexStatusResult = new { verdict = "PASS" }
+            }
+        }));
+        var client = new SearchConsoleClient(
+            new HttpClient(handler),
+            new FakeTokenProvider(),
+            baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.InspectUrl(
+            "devleader.ca",
+            "https://www.devleader.ca/example",
+            language_code: "de-CH");
+
+        using var document = JsonDocument.Parse(result);
+        Assert.Equal("de-CH", document.RootElement.GetProperty("languageCode").GetString());
+        var inspectionResult = document.RootElement.GetProperty("inspectionResult");
+        Assert.True(inspectionResult.TryGetProperty("indexStatusResult", out _));
+        Assert.False(inspectionResult.TryGetProperty("mobileUsabilityResult", out _));
+        Assert.False(inspectionResult.TryGetProperty("richResultsResult", out _));
+        Assert.False(inspectionResult.TryGetProperty("ampResult", out _));
+    }
+
+    [Theory]
+    [InlineData(400, "URL is not under the property")]
+    [InlineData(429, "quota exceeded")]
+    public async Task InspectUrl_ApiError_ReturnsErrorResult(int statusCode, string responseBody)
+    {
+        var handler = new FakeMessageHandler(_ => new HttpResponseMessage((HttpStatusCode)statusCode)
+        {
+            Content = new StringContent(
+                $"{{\"error\":\"{responseBody}\"}}",
+                System.Text.Encoding.UTF8,
+                "application/json")
+        });
+        var client = new SearchConsoleClient(
+            new HttpClient(handler),
+            new FakeTokenProvider(),
+            baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.InspectUrl(
+            "devleader.ca",
+            "https://other.example/page");
+
+        using var document = JsonDocument.Parse(result);
+        var error = document.RootElement.GetProperty("error").GetString();
+        Assert.NotNull(error);
+        Assert.Contains("GscApiException", error, StringComparison.Ordinal);
+        Assert.Contains(statusCode.ToString(System.Globalization.CultureInfo.InvariantCulture), error, StringComparison.Ordinal);
+        Assert.Contains(responseBody, error, StringComparison.Ordinal);
     }
 }

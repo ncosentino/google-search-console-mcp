@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2/google"
@@ -22,7 +23,8 @@ const (
 
 	// defaultSearchType is the effective search type when the caller omits
 	// search_type, matching the upstream API's own documented default.
-	defaultSearchType = "web"
+	defaultSearchType   = "web"
+	defaultLanguageCode = "en-US"
 )
 
 // validSearchTypes are the upstream Search Console API's supported values for
@@ -37,9 +39,13 @@ var validSearchTypes = map[string]bool{
 	"googleNews": true,
 }
 
-// apiBaseURL is the base URL for the Google Search Console API.
-// It is a variable so tests can override it to point at a local test server.
-var apiBaseURL = "https://www.googleapis.com/webmasters/v3"
+var (
+	// apiBaseURL serves the Sites, Sitemaps, and Search Analytics resources.
+	apiBaseURL = "https://www.googleapis.com/webmasters/v3"
+
+	// urlInspectionAPIBaseURL serves the URL Inspection resource.
+	urlInspectionAPIBaseURL = "https://searchconsole.googleapis.com/v1"
+)
 
 // apiRequestError is returned when the Search Console API responds with a non-2xx status.
 type apiRequestError struct {
@@ -74,13 +80,46 @@ func NewTestClient(httpClient *http.Client) *Client {
 	return &Client{httpClient: httpClient}
 }
 
-// SetTestAPIBaseURL overrides the package-level Search Console API base URL, returning
-// a function that restores the original value. Exported solely for use in
-// package-level tests, including tests in other packages.
+// SetTestAPIBaseURL overrides both Search Console API base URLs, returning a
+// function that restores the original values. Exported solely for package tests.
 func SetTestAPIBaseURL(newURL string) (restore func()) {
-	orig := apiBaseURL
+	origAPI := apiBaseURL
+	origInspectionAPI := urlInspectionAPIBaseURL
 	apiBaseURL = newURL
-	return func() { apiBaseURL = orig }
+	urlInspectionAPIBaseURL = newURL
+	return func() {
+		apiBaseURL = origAPI
+		urlInspectionAPIBaseURL = origInspectionAPI
+	}
+}
+
+func withResolvedSiteURL[T any](
+	ctx context.Context,
+	client *Client,
+	input string,
+	operation func(string) (T, error),
+) (T, error) {
+	resolved := NormalizeSiteURL(input)
+	result, err := operation(resolved)
+	if err == nil {
+		return result, nil
+	}
+
+	var apiErr *apiRequestError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusForbidden {
+		var zero T
+		return zero, err
+	}
+
+	slog.Info("site URL returned 403, attempting property resolution", "input", input, "tried", resolved)
+	resolvedURL, resolveErr := ResolveSiteURL(ctx, client, input)
+	if resolveErr != nil {
+		var zero T
+		return zero, err
+	}
+
+	slog.Info("retrying with resolved property", "resolvedURL", resolvedURL)
+	return operation(resolvedURL)
 }
 
 // QuerySearchAnalytics queries search analytics data for the given site.
@@ -101,22 +140,11 @@ func (c *Client) QuerySearchAnalytics(
 		return nil, fmt.Errorf(
 			"invalid search_type %q: must be one of web, image, video, news, discover, googleNews", searchType)
 	}
-	resolved := NormalizeSiteURL(siteURL)
-	result, err := c.querySearchAnalyticsWithURL(ctx, resolved, startDate, endDate, dimensions, rowLimit, searchType)
-	if err != nil {
-		var apiErr *apiRequestError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusForbidden {
-			slog.Info("site URL returned 403, attempting property resolution", "input", siteURL, "tried", resolved)
-			resolvedURL, resolveErr := ResolveSiteURL(ctx, c, siteURL)
-			if resolveErr != nil {
-				return nil, err // return original 403 error
-			}
-			slog.Info("retrying with resolved property", "resolvedURL", resolvedURL)
-			return c.querySearchAnalyticsWithURL(ctx, resolvedURL, startDate, endDate, dimensions, rowLimit, searchType)
-		}
-		return nil, err
-	}
-	return result, nil
+
+	return withResolvedSiteURL(ctx, c, siteURL, func(resolved string) (*SearchAnalyticsResponse, error) {
+		return c.querySearchAnalyticsWithURL(
+			ctx, resolved, startDate, endDate, dimensions, rowLimit, searchType)
+	})
 }
 
 func (c *Client) querySearchAnalyticsWithURL(
@@ -229,22 +257,9 @@ func (c *Client) ListSites(ctx context.Context) (*SiteList, error) {
 // siteURL accepts any of: bare domain ("example.com"), URL ("https://example.com"),
 // or canonical GSC form ("sc-domain:example.com", "https://example.com/").
 func (c *Client) ListSitemaps(ctx context.Context, siteURL string) (*SitemapList, error) {
-	resolved := NormalizeSiteURL(siteURL)
-	result, err := c.listSitemapsWithURL(ctx, resolved)
-	if err != nil {
-		var apiErr *apiRequestError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusForbidden {
-			slog.Info("site URL returned 403, attempting property resolution", "input", siteURL, "tried", resolved)
-			resolvedURL, resolveErr := ResolveSiteURL(ctx, c, siteURL)
-			if resolveErr != nil {
-				return nil, err
-			}
-			slog.Info("retrying with resolved property", "resolvedURL", resolvedURL)
-			return c.listSitemapsWithURL(ctx, resolvedURL)
-		}
-		return nil, err
-	}
-	return result, nil
+	return withResolvedSiteURL(ctx, c, siteURL, func(resolved string) (*SitemapList, error) {
+		return c.listSitemapsWithURL(ctx, resolved)
+	})
 }
 
 func (c *Client) listSitemapsWithURL(ctx context.Context, siteURL string) (*SitemapList, error) {
@@ -293,6 +308,84 @@ func (c *Client) listSitemapsWithURL(ctx context.Context, siteURL string) (*Site
 	}
 
 	return &SitemapList{SiteURL: siteURL, Sitemaps: sitemaps, QueriedAt: time.Now().UTC()}, nil
+}
+
+// InspectURL returns Google's indexed status and available per-URL enhancement
+// information for one URL under the given Search Console property.
+func (c *Client) InspectURL(
+	ctx context.Context,
+	siteURL string,
+	inspectionURL string,
+	languageCode string,
+) (*URLInspectionResponse, error) {
+	inspectionURL = strings.TrimSpace(inspectionURL)
+	if inspectionURL == "" {
+		return nil, errors.New("inspection_url is required")
+	}
+
+	languageCode = strings.TrimSpace(languageCode)
+	if languageCode == "" {
+		languageCode = defaultLanguageCode
+	}
+
+	return withResolvedSiteURL(ctx, c, siteURL, func(resolved string) (*URLInspectionResponse, error) {
+		return c.inspectURLWithSiteURL(ctx, resolved, inspectionURL, languageCode)
+	})
+}
+
+func (c *Client) inspectURLWithSiteURL(
+	ctx context.Context,
+	siteURL string,
+	inspectionURL string,
+	languageCode string,
+) (*URLInspectionResponse, error) {
+	requestBody := apiURLInspectionRequest{
+		SiteURL:       siteURL,
+		InspectionURL: inspectionURL,
+		LanguageCode:  languageCode,
+	}
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling request body: %w", err)
+	}
+
+	endpoint := urlInspectionAPIBaseURL + "/urlInspection/index:inspect"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("building request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("executing request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncate(string(body), 300)}
+	}
+
+	var raw apiURLInspectionResponse
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("parsing URL inspection response: %w", err)
+	}
+	inspectionResult := bytes.TrimSpace(raw.InspectionResult)
+	if len(inspectionResult) == 0 || bytes.Equal(inspectionResult, []byte("null")) {
+		return nil, fmt.Errorf("parsing URL inspection response: inspectionResult is missing")
+	}
+
+	return &URLInspectionResponse{
+		SiteURL:          siteURL,
+		InspectionURL:    inspectionURL,
+		LanguageCode:     languageCode,
+		InspectionResult: raw.InspectionResult,
+		QueriedAt:        time.Now().UTC(),
+	}, nil
 }
 
 func truncate(s string, max int) string {

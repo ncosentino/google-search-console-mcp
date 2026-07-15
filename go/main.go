@@ -113,7 +113,7 @@ func main() {
 	}
 }
 
-// newServer builds an *mcp.Server with all three tools registered against client,
+// newServer builds an *mcp.Server with all tools registered against client,
 // independent of which transport (stdio, or a future http) will ultimately serve it.
 // Extracted so tests can exercise real tool registration/dispatch via an in-memory or
 // IOTransport session, instead of only unit-testing the handler functions directly.
@@ -158,6 +158,16 @@ func newServer(client *searchconsole.Client) *mcp.Server {
 		},
 	)
 
+	mcp.AddTool(srv,
+		&mcp.Tool{
+			Name:        "inspect_url",
+			Description: "Inspect Google's indexed version of one known URL under a Search Console property. site_url accepts a bare domain, full URL, or canonical GSC property form and is automatically resolved on 403 errors. inspection_url is the fully qualified URL to inspect. language_code is optional and defaults to en-US. Returns index status and any available per-URL mobile usability, rich results, and AMP details. This is not a live URL test or a bulk Page Indexing report, and Google applies URL Inspection API quotas.",
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input inspectURLInput) (*mcp.CallToolResult, any, error) {
+			return inspectURL(ctx, client, input)
+		},
+	)
+
 	return srv
 }
 
@@ -191,38 +201,40 @@ type listSitemapsInput struct {
 	SiteURL string `json:"site_url"`
 }
 
+// inspectURLInput is the input schema for the inspect_url tool.
+type inspectURLInput struct {
+	SiteURL       string `json:"site_url"`
+	InspectionURL string `json:"inspection_url"`
+	LanguageCode  string `json:"language_code,omitempty"`
+}
+
 func querySearchAnalytics(ctx context.Context, client *searchconsole.Client, input querySearchAnalyticsInput) (*mcp.CallToolResult, any, error) {
 	result, err := client.QuerySearchAnalytics(ctx, input.SiteURL, input.StartDate, input.EndDate, input.Dimensions, input.RowLimit, input.SearchType)
-	if err != nil {
-		errResult := map[string]string{"error": fmt.Sprintf("querying search analytics: %v", err)}
-		b, _ := json.Marshal(errResult)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, nil, nil
-	}
-	b, err := json.Marshal(result)
-	if err != nil {
-		return nil, nil, fmt.Errorf("marshalling result: %w", err)
-	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, nil, nil
+	return marshalToolResult("querying search analytics", result, err)
 }
 
 func listSites(ctx context.Context, client *searchconsole.Client) (*mcp.CallToolResult, any, error) {
 	result, err := client.ListSites(ctx)
-	if err != nil {
-		errResult := map[string]string{"error": fmt.Sprintf("listing sites: %v", err)}
-		b, _ := json.Marshal(errResult)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, nil, nil
-	}
-	b, err := json.Marshal(result)
-	if err != nil {
-		return nil, nil, fmt.Errorf("marshalling result: %w", err)
-	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, nil, nil
+	return marshalToolResult("listing sites", result, err)
 }
 
 func listSitemaps(ctx context.Context, client *searchconsole.Client, siteURL string) (*mcp.CallToolResult, any, error) {
 	result, err := client.ListSitemaps(ctx, siteURL)
+	return marshalToolResult("listing sitemaps", result, err)
+}
+
+func inspectURL(ctx context.Context, client *searchconsole.Client, input inspectURLInput) (*mcp.CallToolResult, any, error) {
+	result, err := client.InspectURL(ctx, input.SiteURL, input.InspectionURL, input.LanguageCode)
+	return marshalToolResult("inspecting URL", result, err)
+}
+
+func marshalToolResult[T any](
+	operation string,
+	result T,
+	err error,
+) (*mcp.CallToolResult, any, error) {
 	if err != nil {
-		errResult := map[string]string{"error": fmt.Sprintf("listing sitemaps: %v", err)}
+		errResult := map[string]string{"error": fmt.Sprintf("%s: %v", operation, err)}
 		b, _ := json.Marshal(errResult)
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, nil, nil
 	}

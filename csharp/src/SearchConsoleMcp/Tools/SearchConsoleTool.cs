@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using ModelContextProtocol.Server;
 using SearchConsoleMcp.SearchConsole;
 
@@ -20,36 +21,19 @@ internal sealed class SearchConsoleTool(SearchConsoleClient client)
         [Description("Which Google Search results the metrics come from. One of: web, image, video, news, discover, googleNews. Defaults to web if omitted.")] string? search_type = null,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var result = await client
-                .QuerySearchAnalyticsAsync(site_url, start_date, end_date, dimensions, row_limit, search_type, cancellationToken)
-                .ConfigureAwait(false);
-            return JsonSerializer.Serialize(result, GscJsonContext.Default.SearchAnalyticsResponse);
-        }
-        catch (Exception ex)
-        {
-            return JsonSerializer.Serialize(
-                new ErrorResult($"{ex.GetType().Name}: {ex.Message}"),
-                GscJsonContext.Default.ErrorResult);
-        }
+        return await ExecuteToolAsync(
+            () => client.QuerySearchAnalyticsAsync(
+                site_url, start_date, end_date, dimensions, row_limit, search_type, cancellationToken),
+            GscJsonContext.Default.SearchAnalyticsResponse).ConfigureAwait(false);
     }
 
     [McpServerTool(Name = "list_sites")]
     [Description("List all Google Search Console properties (sites) the service account has access to, along with permission levels.")]
     internal async Task<string> ListSites(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var result = await client.ListSitesAsync(cancellationToken).ConfigureAwait(false);
-            return JsonSerializer.Serialize(result, GscJsonContext.Default.SiteListResponse);
-        }
-        catch (Exception ex)
-        {
-            return JsonSerializer.Serialize(
-                new ErrorResult($"{ex.GetType().Name}: {ex.Message}"),
-                GscJsonContext.Default.ErrorResult);
-        }
+        return await ExecuteToolAsync(
+            () => client.ListSitesAsync(cancellationToken),
+            GscJsonContext.Default.SiteListResponse).ConfigureAwait(false);
     }
 
     [McpServerTool(Name = "list_sitemaps")]
@@ -58,10 +42,32 @@ internal sealed class SearchConsoleTool(SearchConsoleClient client)
         [Description("The Search Console property. Accepts flexible input: bare domain (\"example.com\"), full URL (\"https://www.example.com\"), or canonical GSC form (\"sc-domain:example.com\", \"https://www.example.com/\"). The server normalizes the input and automatically retries with property discovery on 403 errors.")] string site_url,
         CancellationToken cancellationToken = default)
     {
+        return await ExecuteToolAsync(
+            () => client.ListSitemapsAsync(site_url, cancellationToken),
+            GscJsonContext.Default.SitemapListResponse).ConfigureAwait(false);
+    }
+
+    [McpServerTool(Name = "inspect_url")]
+    [Description("Inspect Google's indexed version of one known URL under a Search Console property. Returns index status and any available per-URL mobile usability, rich results, and AMP details. This is not a live URL test or a bulk Page Indexing report, and Google applies URL Inspection API quotas.")]
+    internal async Task<string> InspectUrl(
+        [Description("The Search Console property. Accepts flexible input: bare domain (\"example.com\"), full URL (\"https://www.example.com\"), or canonical GSC form (\"sc-domain:example.com\", \"https://www.example.com/\"). The server normalizes the input and automatically retries with property discovery on 403 errors.")] string site_url,
+        [Description("The fully qualified URL under the property to inspect.")] string inspection_url,
+        [Description("Optional BCP-47 language code for translated issue messages. Defaults to en-US.")] string? language_code = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteToolAsync(
+            () => client.InspectUrlAsync(site_url, inspection_url, language_code, cancellationToken),
+            GscJsonContext.Default.UrlInspectionResponse).ConfigureAwait(false);
+    }
+
+    private static async Task<string> ExecuteToolAsync<T>(
+        Func<Task<T>> operation,
+        JsonTypeInfo<T> jsonTypeInfo)
+    {
         try
         {
-            var result = await client.ListSitemapsAsync(site_url, cancellationToken).ConfigureAwait(false);
-            return JsonSerializer.Serialize(result, GscJsonContext.Default.SitemapListResponse);
+            var result = await operation().ConfigureAwait(false);
+            return JsonSerializer.Serialize(result, jsonTypeInfo);
         }
         catch (Exception ex)
         {
