@@ -37,8 +37,8 @@ internal sealed record SitemapEntry(
     bool IsSitemapsIndex,
     string Type,
     DateTimeOffset? LastDownloaded,
-    long Warnings,
-    long Errors);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] long? Warnings,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] long? Errors);
 
 /// <summary>The result of listing sitemaps for a property.</summary>
 internal sealed record SitemapListResponse(
@@ -84,10 +84,12 @@ internal sealed class ApiSitemapEntry
     public string? LastDownloaded { get; set; }
 
     [JsonPropertyName("warnings")]
-    public long Warnings { get; set; }
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public long? Warnings { get; set; }
 
     [JsonPropertyName("errors")]
-    public long Errors { get; set; }
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public long? Errors { get; set; }
 }
 
 internal sealed class ApiSitemapListResponse

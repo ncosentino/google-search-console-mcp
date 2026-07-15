@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SearchConsoleMcp.SearchConsole;
 using SearchConsoleMcp.Tools;
 using Xunit;
@@ -85,14 +86,52 @@ public sealed class SearchConsoleToolTests
     {
         var handler = new FakeMessageHandler(_ => FakeResponses.OkJson(new
         {
-            sitemap = new[] { new { path = "https://devleader.ca/sitemap.xml", isPending = false, isSitemapsIndex = false, type = "sitemap", warnings = 0, errors = 0 } }
+            sitemap = new object[]
+            {
+                new { path = "https://devleader.ca/string.xml", isPending = false, isSitemapsIndex = false, type = "sitemap", warnings = "2", errors = "0" },
+                new { path = "https://devleader.ca/null.xml", isPending = false, isSitemapsIndex = false, type = "sitemap", warnings = (object?)null, errors = (object?)null },
+                new { path = "https://devleader.ca/missing.xml", isPending = false, isSitemapsIndex = false, type = "sitemap" },
+                new { path = "https://devleader.ca/numeric.xml", isPending = false, isSitemapsIndex = false, type = "sitemap", warnings = 0, errors = 1 }
+            }
         }));
         var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
         var tool = new SearchConsoleTool(client);
 
         var result = await tool.ListSitemaps("devleader.ca");
 
-        Assert.Contains("sitemap.xml", result, StringComparison.Ordinal);
+        using var document = JsonDocument.Parse(result);
+        var sitemaps = document.RootElement.GetProperty("sitemaps");
+        Assert.Equal(4, sitemaps.GetArrayLength());
+        Assert.Equal(2L, sitemaps[0].GetProperty("warnings").GetInt64());
+        Assert.Equal(0L, sitemaps[0].GetProperty("errors").GetInt64());
+        Assert.Equal(JsonValueKind.Null, sitemaps[1].GetProperty("warnings").ValueKind);
+        Assert.Equal(JsonValueKind.Null, sitemaps[1].GetProperty("errors").ValueKind);
+        Assert.Equal(JsonValueKind.Null, sitemaps[2].GetProperty("warnings").ValueKind);
+        Assert.Equal(JsonValueKind.Null, sitemaps[2].GetProperty("errors").ValueKind);
+        Assert.Equal(0L, sitemaps[3].GetProperty("warnings").GetInt64());
+        Assert.Equal(1L, sitemaps[3].GetProperty("errors").GetInt64());
+    }
+
+    [Fact]
+    public async Task ListSitemaps_InvalidCounter_ReturnsErrorResult()
+    {
+        var handler = new FakeMessageHandler(_ => FakeResponses.OkJson(new
+        {
+            sitemap = new[]
+            {
+                new { path = "https://devleader.ca/sitemap.xml", warnings = "invalid", errors = "0" }
+            }
+        }));
+        var client = new SearchConsoleClient(new HttpClient(handler), new FakeTokenProvider(), baseUrlOverride: "http://localhost/gsc");
+        var tool = new SearchConsoleTool(client);
+
+        var result = await tool.ListSitemaps("devleader.ca");
+
+        using var document = JsonDocument.Parse(result);
+        var error = document.RootElement.GetProperty("error").GetString();
+        Assert.NotNull(error);
+        Assert.Contains("JsonException", error, StringComparison.Ordinal);
+        Assert.Contains("warnings", error, StringComparison.Ordinal);
     }
 
     [Fact]
