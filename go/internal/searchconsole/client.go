@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	gscScope    = "https://www.googleapis.com/auth/webmasters.readonly"
-	httpTimeout = 30 * time.Second
+	gscScope          = "https://www.googleapis.com/auth/webmasters.readonly"
+	httpTimeout       = 30 * time.Second
+	apiErrorBodyLimit = 300
 
 	// defaultSearchType is the effective search type when the caller omits
 	// search_type, matching the upstream API's own documented default.
@@ -189,7 +190,7 @@ func (c *Client) querySearchAnalyticsWithURL(
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncate(string(body), 300)}
+		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncateAPIErrorBody(string(body))}
 	}
 
 	var raw apiSearchAnalyticsResponse
@@ -237,7 +238,7 @@ func (c *Client) ListSites(ctx context.Context) (*SiteList, error) {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncate(string(body), 300)}
+		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncateAPIErrorBody(string(body))}
 	}
 
 	var raw apiSiteListResponse
@@ -280,7 +281,7 @@ func (c *Client) listSitemapsWithURL(ctx context.Context, siteURL string) (*Site
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncate(string(body), 300)}
+		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncateAPIErrorBody(string(body))}
 	}
 
 	var raw apiSitemapListResponse
@@ -367,7 +368,7 @@ func (c *Client) inspectURLWithSiteURL(
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncate(string(body), 300)}
+		return nil, &apiRequestError{StatusCode: resp.StatusCode, Body: truncateAPIErrorBody(string(body))}
 	}
 
 	var raw apiURLInspectionResponse
@@ -388,9 +389,9 @@ func (c *Client) inspectURLWithSiteURL(
 	}, nil
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
+func truncateAPIErrorBody(s string) string {
+	if len(s) <= apiErrorBodyLimit {
 		return s
 	}
-	return s[:max] + "..."
+	return s[:apiErrorBodyLimit] + "..."
 }
