@@ -4,6 +4,13 @@ description: Build the Google Search Console MCP server from source -- Go and C#
 
 # Building from Source
 
+Documentation emits a page-specific `WebPage` using existing description frontmatter.
+Its name matches the HTML and social title; its identity matches the slashless,
+URI-escaped canonical URL. Pages without an authored description are excluded rather
+than receiving an invented summary. Existing project and instructional schemas remain.
+The documentation CI job checks built metadata and punctuation/script escaping with
+`python scripts/test-docs-schema.py` after the MkDocs build.
+
 Both implementations can be built locally from the repository. Pre-built binaries are available on the [Releases page](https://github.com/ncosentino/google-search-console-mcp/releases/latest) if you don't need to build from source.
 
 ---
